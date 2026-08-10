@@ -16,7 +16,9 @@ export interface GraphGroup {
 
 export interface GraphNode {
   id: string
-  endpointId: number
+  kind?: 'ENDPOINT' | 'EXECUTOR' | string
+  endpointId?: number | null
+  executorId?: number | null
   type: string
   label: string
   groupId?: string | null

@@ -18,6 +18,10 @@ public final class EndpointSupport {
         return "ep-" + endpointId;
     }
 
+    public static String executorNodeId(Long executorId) {
+        return "exec-" + executorId;
+    }
+
     public static String edgeId(Long flowId) {
         return "flow-" + flowId;
     }

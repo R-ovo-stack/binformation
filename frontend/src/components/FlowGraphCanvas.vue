@@ -85,6 +85,7 @@ async function render() {
     graphInstance.clearCells()
 
     positioned.forEach((node) => {
+      const isExecutor = node.kind === 'EXECUTOR'
       const isBroker = node.type === 'HOST'
       const isKafka = node.type === 'KAFKA'
       graphInstance!.addNode({
@@ -93,16 +94,19 @@ async function render() {
         y: node.y - NODE_HEIGHT / 2,
         width: NODE_WIDTH,
         height: NODE_HEIGHT,
+        shape: isExecutor ? 'ellipse' : 'rect',
         attrs: {
           body: {
-            stroke: isKafka ? '#1d4ed8' : isBroker ? '#64748b' : '#1f4f46',
-            strokeWidth: 1.5,
-            fill: isBroker ? '#f8fafc' : '#ffffff',
-            rx: 10,
-            ry: 10,
+            stroke: isExecutor ? '#b45309' : isKafka ? '#1d4ed8' : isBroker ? '#64748b' : '#1f4f46',
+            strokeWidth: isExecutor ? 2 : 1.5,
+            fill: isExecutor ? '#fff7ed' : isBroker ? '#f8fafc' : '#ffffff',
+            rx: isExecutor ? undefined : 10,
+            ry: isExecutor ? undefined : 10,
           },
           label: {
-            text: `${node.label}\n${endpointTypeLabel(node.type)}`,
+            text: isExecutor
+              ? `${node.label}\n程序`
+              : `${node.label}\n${endpointTypeLabel(node.type)}`,
             fill: '#0f172a',
             fontSize: 12,
             fontFamily: 'IBM Plex Sans, sans-serif',
@@ -176,6 +180,8 @@ async function render() {
     })
 
     ;(props.graph.relations ?? []).forEach((rel) => {
+      const isRunsOn = rel.type === 'RUNS_ON'
+      const isVia = rel.type === 'VIA_EXECUTOR'
       graphInstance!.addEdge({
         id: rel.id,
         source: rel.source,
@@ -185,14 +191,14 @@ async function render() {
             attrs: {
               label: {
                 text: rel.label || rel.type,
-                fill: '#64748b',
+                fill: isRunsOn ? '#b45309' : '#64748b',
                 fontSize: 10,
                 fontFamily: 'IBM Plex Sans, sans-serif',
                 pointerEvents: 'none',
               },
               body: {
-                fill: '#f8fafc',
-                stroke: '#cbd5e1',
+                fill: isRunsOn ? '#fff7ed' : '#f8fafc',
+                stroke: isRunsOn ? '#fdba74' : '#cbd5e1',
                 strokeWidth: 1,
                 rx: 3,
                 ry: 3,
@@ -204,9 +210,9 @@ async function render() {
         ],
         attrs: {
           line: {
-            stroke: '#94a3b8',
-            strokeWidth: 1.2,
-            strokeDasharray: '4 4',
+            stroke: isRunsOn ? '#c2410c' : isVia ? '#a8a29e' : '#94a3b8',
+            strokeWidth: isRunsOn ? 1.8 : 1.2,
+            strokeDasharray: isVia ? '2 4' : '4 4',
             targetMarker: {
               name: 'classic',
               width: 8,

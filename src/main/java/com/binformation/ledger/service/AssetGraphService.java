@@ -113,7 +113,8 @@ public class AssetGraphService {
             }
         }
 
-        List<GraphRelationDto> relations = enrichKafkaTopology(endpointIds, allEndpoints);
+        List<GraphRelationDto> relations = new ArrayList<>();
+        relations.addAll(enrichKafkaTopology(endpointIds, allEndpoints));
 
         Map<Long, FlowLayout> layoutByEndpoint = flowLayoutMapper.selectList(
                         new LambdaQueryWrapper<FlowLayout>().eq(FlowLayout::getAssetId, assetId))
@@ -123,8 +124,15 @@ public class AssetGraphService {
         Map<Long, Executor> executors = executorMapper.selectList(null).stream()
                 .collect(Collectors.toMap(Executor::getId, Function.identity()));
 
+        List<GraphNodeDto> executorNodes = new ArrayList<>();
+        relations.addAll(enrichExecutorTopology(
+                flows, pathsByFlow, stepsByPath, endpointIds, allEndpoints, executors, executorNodes));
+
+        relations.sort(Comparator.comparing(GraphRelationDto::id));
+
         List<GraphGroupDto> groups = buildGroups(endpointIds, allEndpoints);
         List<GraphNodeDto> nodes = buildNodes(endpointIds, allEndpoints, layoutByEndpoint);
+        nodes.addAll(executorNodes);
         List<GraphEdgeDto> edges = buildEdges(flows, pathsByFlow, stepsByPath, allEndpoints, executors);
         List<GraphDerivationDto> derivations = buildDerivations(assetId, allEndpoints, executors);
 
@@ -170,14 +178,7 @@ public class AssetGraphService {
             }
         }
 
-        Set<Long> kafkaIds = endpointIds.stream()
-                .map(allEndpoints::get)
-                .filter(Objects::nonNull)
-                .filter(ep -> "KAFKA".equals(ep.getType()))
-                .map(Endpoint::getId)
-                .collect(Collectors.toCollection(HashSet::new));
-
-        // 也覆盖“仅有主题、刚补入 Kafka”的情况
+        Set<Long> kafkaIds = new HashSet<>();
         for (Long id : new HashSet<>(endpointIds)) {
             Endpoint ep = allEndpoints.get(id);
             if (ep != null && "KAFKA".equals(ep.getType())) {
@@ -212,8 +213,93 @@ public class AssetGraphService {
             }
         }
 
-        relations.sort(Comparator.comparing(GraphRelationDto::id));
         return relations;
+    }
+
+    /**
+     * 补齐程序/脚本节点，以及部署节点、在流向上的处理位置。
+     */
+    private List<GraphRelationDto> enrichExecutorTopology(
+            List<Flow> flows,
+            Map<Long, List<FlowPath>> pathsByFlow,
+            Map<Long, List<FlowStep>> stepsByPath,
+            Set<Long> endpointIds,
+            Map<Long, Endpoint> allEndpoints,
+            Map<Long, Executor> executors,
+            List<GraphNodeDto> executorNodes) {
+        List<GraphRelationDto> relations = new ArrayList<>();
+        Map<Long, GraphNodeDto> executorNodeMap = new LinkedHashMap<>();
+
+        for (Flow flow : flows) {
+            List<FlowPath> paths = pathsByFlow.getOrDefault(flow.getId(), List.of());
+            for (FlowPath path : paths) {
+                List<FlowStep> steps = stepsByPath.getOrDefault(path.getId(), List.of());
+                for (FlowStep step : steps) {
+                    Executor executor = executors.get(step.getExecutorId());
+                    if (executor == null) {
+                        continue;
+                    }
+
+                    Long hostId = step.getHostId() != null ? step.getHostId() : executor.getDefaultHostId();
+                    if (hostId != null) {
+                        endpointIds.add(hostId);
+                    }
+
+                    Endpoint host = hostId == null ? null : allEndpoints.get(hostId);
+                    Endpoint zone = host == null ? null : EndpointSupport.resolveZone(host, allEndpoints);
+                    String groupId = zone == null ? null : EndpointSupport.groupId(zone.getId());
+                    String breadcrumb = host == null
+                            ? executor.getName()
+                            : EndpointSupport.buildBreadcrumb(host, allEndpoints) + " / " + executor.getName();
+
+                    executorNodeMap.putIfAbsent(executor.getId(), new GraphNodeDto(
+                            EndpointSupport.executorNodeId(executor.getId()),
+                            "EXECUTOR",
+                            null,
+                            executor.getId(),
+                            executor.getKind(),
+                            executor.getName(),
+                            groupId,
+                            breadcrumb,
+                            null,
+                            null
+                    ));
+
+                    if (hostId != null) {
+                        relations.add(new GraphRelationDto(
+                                "rel-runs-on-" + executor.getId() + "-" + hostId,
+                                EndpointSupport.executorNodeId(executor.getId()),
+                                EndpointSupport.nodeId(hostId),
+                                "RUNS_ON",
+                                "部署于"
+                        ));
+                    }
+
+                    relations.add(new GraphRelationDto(
+                            "rel-from-src-" + flow.getId() + "-" + executor.getId(),
+                            EndpointSupport.nodeId(flow.getSourceEndpointId()),
+                            EndpointSupport.executorNodeId(executor.getId()),
+                            "VIA_EXECUTOR",
+                            "经程序处理"
+                    ));
+                    relations.add(new GraphRelationDto(
+                            "rel-to-tgt-" + flow.getId() + "-" + executor.getId(),
+                            EndpointSupport.executorNodeId(executor.getId()),
+                            EndpointSupport.nodeId(flow.getTargetEndpointId()),
+                            "VIA_EXECUTOR",
+                            "写出"
+                    ));
+                }
+            }
+        }
+
+        // RUNS_ON 可能因多路径重复，按 id 去重
+        Map<String, GraphRelationDto> unique = new LinkedHashMap<>();
+        for (GraphRelationDto rel : relations) {
+            unique.put(rel.id(), rel);
+        }
+        executorNodes.addAll(executorNodeMap.values());
+        return new ArrayList<>(unique.values());
     }
 
     private boolean isKafkaBroker(Endpoint host) {
@@ -282,7 +368,9 @@ public class AssetGraphService {
             FlowLayout layout = layoutByEndpoint.get(endpointId);
             nodes.add(new GraphNodeDto(
                     EndpointSupport.nodeId(endpointId),
+                    "ENDPOINT",
                     endpointId,
+                    null,
                     endpoint.getType(),
                     endpoint.getName(),
                     groupId,

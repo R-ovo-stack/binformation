@@ -109,6 +109,8 @@ export function endpointTypeLabel(type: string): string {
     OBJECT_PREFIX: '对象目录',
     DIRECTORY: '目录',
     HTTP_API: 'HTTP接口',
+    PROGRAM: '程序',
+    SCRIPT: '脚本',
   }
   return map[type] ?? type
 }
