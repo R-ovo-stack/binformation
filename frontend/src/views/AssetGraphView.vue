@@ -100,7 +100,7 @@ onMounted(() => {
       </div>
     </header>
 
-    <p class="mobile-tip">手机可单指拖动画布，点右下角 + / − 缩放。</p>
+    <p class="mobile-tip">手机可单指拖动画布（节点暂不可拖动），点右下角 + / − 缩放。</p>
 
     <div class="workspace">
       <FlowGraphCanvas ref="canvasRef" class="canvas" :graph="graph" @select-edge="onSelectEdge" />

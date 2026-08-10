@@ -39,13 +39,21 @@ async function render() {
       graphInstance = new Graph({
         container: containerRef.value,
         autoResize: true,
+        // 成图阶段只读：避免拖节点导致折线/箭头重绘出现黑色三角残影
+        interacting: {
+          nodeMovable: false,
+          edgeMovable: false,
+          arrowheadMovable: false,
+          vertexMovable: false,
+          vertexAddable: false,
+          vertexDeletable: false,
+        },
         panning: {
           enabled: true,
           eventTypes: ['leftMouseDown', 'mouseWheelDown'],
         },
         mousewheel: {
           enabled: true,
-          // 手机双指缩放常带 ctrl；同时允许无修饰键滚轮/触控板缩放
           modifiers: null,
           factor: 1.12,
           minScale: 0.2,
@@ -64,7 +72,12 @@ async function render() {
           },
         },
         connecting: {
-          router: 'manhattan',
+          router: {
+            name: 'manhattan',
+            args: {
+              padding: 16,
+            },
+          },
           connector: {
             name: 'rounded',
             args: { radius: 8 },
@@ -105,14 +118,15 @@ async function render() {
         y: node.y - NODE_HEIGHT / 2,
         width: NODE_WIDTH,
         height: NODE_HEIGHT,
-        shape: isExecutor ? 'ellipse' : 'rect',
+        // 统一圆角矩形，避免 ellipse 锚点导致箭头出现黑色三角
+        shape: 'rect',
         attrs: {
           body: {
             stroke: isExecutor ? '#b45309' : isKafka ? '#1d4ed8' : isBroker ? '#64748b' : '#1f4f46',
             strokeWidth: isExecutor ? 2 : 1.5,
             fill: isExecutor ? '#fff7ed' : isBroker ? '#f8fafc' : '#ffffff',
-            rx: isExecutor ? undefined : 10,
-            ry: isExecutor ? undefined : 10,
+            rx: isExecutor ? 28 : 10,
+            ry: isExecutor ? 28 : 10,
           },
           label: {
             text: isExecutor
@@ -177,13 +191,24 @@ async function render() {
             stroke,
             strokeWidth: edge.primary ? 2.5 : 1.5,
             strokeDasharray: edge.primary ? undefined : '6 4',
+            fill: 'none',
             targetMarker: {
               name: 'block',
               width: 10,
               height: 8,
+              fill: stroke,
+              stroke,
             },
             cursor: 'pointer',
           },
+        },
+        router: {
+          name: 'manhattan',
+          args: { padding: 16 },
+        },
+        connector: {
+          name: 'rounded',
+          args: { radius: 8 },
         },
         data: edge,
         zIndex: 1,
@@ -193,6 +218,7 @@ async function render() {
     ;(props.graph.relations ?? []).forEach((rel) => {
       const isRunsOn = rel.type === 'RUNS_ON'
       const isVia = rel.type === 'VIA_EXECUTOR'
+      const stroke = isRunsOn ? '#c2410c' : isVia ? '#a8a29e' : '#94a3b8'
       graphInstance!.addEdge({
         id: rel.id,
         source: rel.source,
@@ -221,15 +247,24 @@ async function render() {
         ],
         attrs: {
           line: {
-            stroke: isRunsOn ? '#c2410c' : isVia ? '#a8a29e' : '#94a3b8',
+            stroke,
             strokeWidth: isRunsOn ? 1.8 : 1.2,
             strokeDasharray: isVia ? '2 4' : '4 4',
+            fill: 'none',
             targetMarker: {
-              name: 'classic',
+              name: 'block',
               width: 8,
               height: 6,
+              fill: stroke,
+              stroke,
             },
           },
+        },
+        router: {
+          name: 'normal',
+        },
+        connector: {
+          name: 'normal',
         },
         data: { kind: 'relation', ...rel },
         zIndex: 0,
