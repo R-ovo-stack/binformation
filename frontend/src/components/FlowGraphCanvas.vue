@@ -39,9 +39,8 @@ async function render() {
       graphInstance = new Graph({
         container: containerRef.value,
         autoResize: true,
-        // 成图阶段只读：避免拖节点导致折线/箭头重绘出现黑色三角残影
         interacting: {
-          nodeMovable: false,
+          nodeMovable: true,
           edgeMovable: false,
           arrowheadMovable: false,
           vertexMovable: false,
@@ -50,6 +49,7 @@ async function render() {
         },
         panning: {
           enabled: true,
+          // 空白处拖动画布；点在节点上则拖节点
           eventTypes: ['leftMouseDown', 'mouseWheelDown'],
         },
         mousewheel: {
@@ -71,12 +71,11 @@ async function render() {
             thickness: 1,
           },
         },
+        // 默认用 orth，拖动时比 manhattan 更稳，减少箭头黑三角
         connecting: {
           router: {
-            name: 'manhattan',
-            args: {
-              padding: 16,
-            },
+            name: 'orth',
+            args: { padding: 12 },
           },
           connector: {
             name: 'rounded',
@@ -86,7 +85,6 @@ async function render() {
       })
       graphInstance.use(new Export())
 
-      // 阻止浏览器接管双指缩放，交给画布处理
       containerRef.value.style.touchAction = 'none'
 
       graphInstance.on('edge:click', ({ edge }) => {
@@ -152,10 +150,6 @@ async function render() {
         id: edge.id,
         source: edge.source,
         target: edge.target,
-        markup: [
-          { tagName: 'path', selector: 'wrap' },
-          { tagName: 'path', selector: 'line' },
-        ],
         labels: [
           {
             attrs: {
@@ -179,32 +173,26 @@ async function render() {
           },
         ],
         attrs: {
-          wrap: {
-            fill: 'none',
-            connection: true,
-            stroke: 'transparent',
-            strokeWidth: 16,
-            cursor: 'pointer',
-          },
           line: {
-            connection: true,
             stroke,
             strokeWidth: edge.primary ? 2.5 : 1.5,
             strokeDasharray: edge.primary ? undefined : '6 4',
+            // 必须 none，否则折线区域会被填成黑色三角/多边形
             fill: 'none',
             targetMarker: {
               name: 'block',
               width: 10,
               height: 8,
+              offset: 0,
               fill: stroke,
-              stroke,
+              stroke: stroke,
+              strokeWidth: 1,
             },
-            cursor: 'pointer',
           },
         },
         router: {
-          name: 'manhattan',
-          args: { padding: 16 },
+          name: 'orth',
+          args: { padding: 12 },
         },
         connector: {
           name: 'rounded',
@@ -256,15 +244,18 @@ async function render() {
               width: 8,
               height: 6,
               fill: stroke,
-              stroke,
+              stroke: stroke,
+              strokeWidth: 1,
             },
           },
         },
         router: {
-          name: 'normal',
+          name: 'orth',
+          args: { padding: 8 },
         },
         connector: {
-          name: 'normal',
+          name: 'rounded',
+          args: { radius: 6 },
         },
         data: { kind: 'relation', ...rel },
         zIndex: 0,
