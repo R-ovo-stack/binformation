@@ -49,6 +49,14 @@ function zoomToFit() {
   canvasRef.value?.zoomToFit()
 }
 
+function zoomIn() {
+  canvasRef.value?.zoomIn()
+}
+
+function zoomOut() {
+  canvasRef.value?.zoomOut()
+}
+
 function exportPng() {
   canvasRef.value?.exportPng()
 }
@@ -85,10 +93,14 @@ onMounted(() => {
           @change="regenerate"
         />
         <el-button type="primary" :loading="loading" @click="regenerate">一键成图</el-button>
-        <el-button @click="zoomToFit">适配画布</el-button>
-        <el-button @click="exportPng">导出 PNG</el-button>
+        <el-button @click="zoomOut">缩小</el-button>
+        <el-button @click="zoomIn">放大</el-button>
+        <el-button @click="zoomToFit">适配</el-button>
+        <el-button class="desktop-only" @click="exportPng">导出 PNG</el-button>
       </div>
     </header>
+
+    <p class="mobile-tip">手机可单指拖动画布，点右下角 + / − 缩放。</p>
 
     <div class="workspace">
       <FlowGraphCanvas ref="canvasRef" class="canvas" :graph="graph" @select-edge="onSelectEdge" />
@@ -176,9 +188,42 @@ h1 {
   color: #0f172a;
 }
 
+.mobile-tip {
+  display: none;
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
 @media (max-width: 960px) {
+  .page {
+    padding: 12px;
+    gap: 10px;
+  }
+
   .workspace {
     grid-template-columns: 1fr;
+    min-height: 70vh;
+  }
+
+  .canvas {
+    min-height: 70vh;
+  }
+
+  .side {
+    min-height: 180px;
+  }
+
+  .mobile-tip {
+    display: block;
+  }
+
+  .desktop-only {
+    display: none;
+  }
+
+  h1 {
+    font-size: 18px;
   }
 }
 </style>

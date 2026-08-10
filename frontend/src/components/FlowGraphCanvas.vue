@@ -39,10 +39,18 @@ async function render() {
       graphInstance = new Graph({
         container: containerRef.value,
         autoResize: true,
-        panning: true,
+        panning: {
+          enabled: true,
+          eventTypes: ['leftMouseDown', 'mouseWheelDown'],
+        },
         mousewheel: {
           enabled: true,
-          modifiers: ['ctrl', 'meta'],
+          // 手机双指缩放常带 ctrl；同时允许无修饰键滚轮/触控板缩放
+          modifiers: null,
+          factor: 1.12,
+          minScale: 0.2,
+          maxScale: 3,
+          zoomAtMousePosition: true,
         },
         background: {
           color: '#f4f7f5',
@@ -64,6 +72,9 @@ async function render() {
         },
       })
       graphInstance.use(new Export())
+
+      // 阻止浏览器接管双指缩放，交给画布处理
+      containerRef.value.style.touchAction = 'none'
 
       graphInstance.on('edge:click', ({ edge }) => {
         const data = edge.getData() as { kind?: string } | GraphEdge | undefined
@@ -237,6 +248,14 @@ function zoomToFit() {
   graphInstance?.zoomToFit({ padding: 40, maxScale: 1.2 })
 }
 
+function zoomIn() {
+  graphInstance?.zoom(0.2)
+}
+
+function zoomOut() {
+  graphInstance?.zoom(-0.2)
+}
+
 function exportPng() {
   if (!graphInstance) return
   graphInstance.toPNG(
@@ -254,7 +273,7 @@ function exportPng() {
   )
 }
 
-defineExpose({ zoomToFit, exportPng, render })
+defineExpose({ zoomToFit, zoomIn, zoomOut, exportPng, render })
 
 watch(
   () => props.graph,
@@ -277,6 +296,11 @@ onBeforeUnmount(() => {
   <div class="canvas-wrap">
     <div v-if="loading" class="overlay">正在一键成图…</div>
     <div v-if="error" class="overlay error">{{ error }}</div>
+    <div class="zoom-controls">
+      <button type="button" aria-label="放大" @click="zoomIn">+</button>
+      <button type="button" aria-label="缩小" @click="zoomOut">−</button>
+      <button type="button" aria-label="适配画布" @click="zoomToFit">⌂</button>
+    </div>
     <div ref="containerRef" class="canvas" />
   </div>
 </template>
@@ -291,11 +315,39 @@ onBeforeUnmount(() => {
   border-radius: 12px;
   overflow: hidden;
   background: #f4f7f5;
+  touch-action: none;
 }
 
 .canvas {
   width: 100%;
   height: 100%;
+  touch-action: none;
+}
+
+.zoom-controls {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.zoom-controls button {
+  width: 44px;
+  height: 44px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  color: #0f172a;
+  font-size: 22px;
+  line-height: 1;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.zoom-controls button:active {
+  background: #ecf4f1;
 }
 
 .overlay {
