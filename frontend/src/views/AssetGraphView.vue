@@ -106,7 +106,7 @@ onMounted(() => {
       </div>
     </header>
 
-    <p class="mobile-tip">简洁=主链路；完整=Kafka大框套主题，Broker在框外。可拖节点，右下角缩放。</p>
+    <p class="mobile-tip">完整模式：Kafka 显示为集群卡片（标题+主题+节点）。简洁=主链路。</p>
 
     <div class="workspace">
       <FlowGraphCanvas

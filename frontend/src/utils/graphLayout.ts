@@ -4,9 +4,9 @@ export type LayoutMode = 'compact' | 'full'
 
 const NODE_WIDTH = 188
 const NODE_HEIGHT = 64
-const COL_GAP = 280
-const LANE_GAP = 220
-const ROW_IN_LANE = 120
+const COL_GAP = 300
+const LANE_GAP = 250
+const ROW_IN_LANE = 140
 const SAT_DY = 118
 
 export interface PositionedNode extends GraphNode {
@@ -15,16 +15,38 @@ export interface PositionedNode extends GraphNode {
   y: number
   width?: number
   height?: number
-  /** CONTAINS 父节点 id：子节点嵌在大框内 */
+  /** CONTAINS / 集群卡片父节点 id */
   parentNodeId?: string | null
-  /** 是否为包含框（如 Kafka 集群） */
+  /** Kafka 等集群卡片 */
   isContainer?: boolean
+  /** 卡片内角色：主题 / Broker 芯片 */
+  nestRole?: 'topic' | 'broker' | null
 }
 
-const CONTAINER_PAD_X = 28
-const CONTAINER_PAD_TOP = 44
-const CONTAINER_PAD_BOTTOM = 24
-const CONTAINER_GAP = 16
+/** Kafka 集群卡片几何：标题栏 + 主题区 + 可选 Broker 底栏 */
+const CLUSTER_MIN_W = 248
+const CLUSTER_HEADER = 36
+const CLUSTER_PAD = 14
+const TOPIC_INNER_W = 212
+const TOPIC_INNER_H = 56
+const BROKER_CHIP_W = 92
+const BROKER_CHIP_H = 34
+const INNER_GAP = 10
+
+function clusterMetrics(topicCount: number, brokerCount: number) {
+  const topicsW =
+    Math.max(1, topicCount) * TOPIC_INNER_W + Math.max(0, topicCount - 1) * INNER_GAP
+  const brokersW =
+    brokerCount > 0
+      ? brokerCount * BROKER_CHIP_W + Math.max(0, brokerCount - 1) * INNER_GAP
+      : 0
+  const width = Math.max(CLUSTER_MIN_W, topicsW + CLUSTER_PAD * 2, brokersW + CLUSTER_PAD * 2)
+  let height = CLUSTER_HEADER + CLUSTER_PAD + TOPIC_INNER_H + CLUSTER_PAD
+  if (brokerCount > 0) {
+    height += BROKER_CHIP_H + CLUSTER_PAD
+  }
+  return { width, height }
+}
 
 /** 画布上实际绘制的边（把流向展开成 源→程序→目标） */
 export interface DisplayEdge {
@@ -350,54 +372,23 @@ export function layoutGraphSmart(graph: AssetGraph, mode: LayoutMode = 'compact'
   const parentOf = new Map<string, string>()
   const childrenOf = new Map<string, string[]>()
   const containerMeta = new Map<string, { width: number; height: number; x: number; y: number }>()
+  const nestRole = new Map<string, 'topic' | 'broker'>()
+  const leafSize = new Map<string, { width: number; height: number }>()
 
   if (mode === 'full') {
     allRelations
       .filter((r) => r.type === 'CONTAINS')
       .forEach((r) => {
-        if (!positions.has(r.target)) return
+        if (!positions.has(r.target) && !map.has(r.target)) return
+        // 主题可能已在脊柱上；父 Kafka 一定在 view.nodes 里
         parentOf.set(r.target, r.source)
+        nestRole.set(r.target, 'topic')
         if (!childrenOf.has(r.source)) childrenOf.set(r.source, [])
-        childrenOf.get(r.source)!.push(r.target)
+        if (!childrenOf.get(r.source)!.includes(r.target)) {
+          childrenOf.get(r.source)!.push(r.target)
+        }
       })
 
-    // 大框包小框：按子节点包围盒生成父容器
-    childrenOf.forEach((childIds, parentId) => {
-      const kids = childIds
-        .map((id) => positions.get(id))
-        .filter((p): p is { x: number; y: number } => !!p)
-      if (!kids.length) return
-
-      // 多个子节点横向排开（同父）
-      if (kids.length > 1) {
-        const sorted = [...childIds].sort((a, b) => {
-          const pa = positions.get(a)!
-          const pb = positions.get(b)!
-          return pa.y - pb.y || pa.x - pb.x
-        })
-        const base = positions.get(sorted[0])!
-        sorted.forEach((id, i) => {
-          positions.set(id, {
-            x: base.x + i * (NODE_WIDTH + CONTAINER_GAP),
-            y: base.y,
-          })
-        })
-      }
-
-      const placed = childIds.map((id) => positions.get(id)!)
-      const minX = Math.min(...placed.map((p) => p.x - NODE_WIDTH / 2))
-      const maxX = Math.max(...placed.map((p) => p.x + NODE_WIDTH / 2))
-      const minY = Math.min(...placed.map((p) => p.y - NODE_HEIGHT / 2))
-      const maxY = Math.max(...placed.map((p) => p.y + NODE_HEIGHT / 2))
-      const width = maxX - minX + CONTAINER_PAD_X * 2
-      const height = maxY - minY + CONTAINER_PAD_TOP + CONTAINER_PAD_BOTTOM
-      const cx = (minX + maxX) / 2
-      const cy = minY - CONTAINER_PAD_TOP + height / 2
-      positions.set(parentId, { x: cx, y: cy })
-      containerMeta.set(parentId, { width, height, x: cx, y: cy })
-    })
-
-    // Broker 挂在 Kafka 大框下方外侧
     const brokersByKafka = new Map<string, string[]>()
     allRelations
       .filter((r) => r.type === 'BROKER_OF')
@@ -406,19 +397,72 @@ export function layoutGraphSmart(graph: AssetGraph, mode: LayoutMode = 'compact'
         brokersByKafka.get(r.source)!.push(r.target)
       })
 
-    brokersByKafka.forEach((brokers, kafkaId) => {
-      const kp = positions.get(kafkaId)
-      const meta = containerMeta.get(kafkaId)
-      if (!kp) return
-      const boxBottom = meta ? kp.y + meta.height / 2 : kp.y + NODE_HEIGHT / 2
-      brokers.forEach((bid, i) => {
-        if (positions.has(bid)) return
-        const offset = (i - (brokers.length - 1) / 2) * (NODE_WIDTH + 24)
-        positions.set(bid, {
-          x: kp.x + offset,
-          y: boxBottom + SAT_DY / 2 + NODE_HEIGHT / 2,
+    // 先保证每个被包含主题有坐标（若仅父在图中）
+    childrenOf.forEach((topicIds) => {
+      topicIds.forEach((tid, i) => {
+        if (positions.has(tid)) return
+        const sibling = topicIds.map((id) => positions.get(id)).find(Boolean)
+        positions.set(tid, {
+          x: (sibling?.x ?? 140) + i * (TOPIC_INNER_W + INNER_GAP),
+          y: sibling?.y ?? 160,
         })
       })
+    })
+
+    childrenOf.forEach((topicIds, kafkaId) => {
+      const brokers = (brokersByKafka.get(kafkaId) || []).filter((id) => map.has(id))
+      const metrics = clusterMetrics(topicIds.length, brokers.length)
+
+      // 以主题脊柱位置为锚：卡片中心对齐主题列，主题落在标题下的内容区
+      const anchors = topicIds.map((id) => positions.get(id)!).filter(Boolean)
+      if (!anchors.length) return
+      const anchorX = anchors.reduce((s, p) => s + p.x, 0) / anchors.length
+      const anchorY = anchors.reduce((s, p) => s + p.y, 0) / anchors.length
+
+      // 内容区中心（主题行）相对卡片中心的偏移
+      const contentCenterOffsetY =
+        -metrics.height / 2 + CLUSTER_HEADER + CLUSTER_PAD + TOPIC_INNER_H / 2
+      const cardCx = anchorX
+      const cardCy = anchorY - contentCenterOffsetY
+
+      positions.set(kafkaId, { x: cardCx, y: cardCy })
+      containerMeta.set(kafkaId, {
+        width: metrics.width,
+        height: metrics.height,
+        x: cardCx,
+        y: cardCy,
+      })
+
+      // 主题横排，整体水平居中于卡片
+      const topicsSpan =
+        topicIds.length * TOPIC_INNER_W + Math.max(0, topicIds.length - 1) * INNER_GAP
+      const topicLeft = cardCx - topicsSpan / 2
+      topicIds.forEach((tid, i) => {
+        const tx = topicLeft + TOPIC_INNER_W / 2 + i * (TOPIC_INNER_W + INNER_GAP)
+        const ty = cardCy + contentCenterOffsetY
+        positions.set(tid, { x: tx, y: ty })
+        parentOf.set(tid, kafkaId)
+        nestRole.set(tid, 'topic')
+        leafSize.set(tid, { width: TOPIC_INNER_W, height: TOPIC_INNER_H })
+      })
+
+      // Broker 芯片收进卡片底栏（视觉归属集群，不再甩在外面）
+      if (brokers.length) {
+        const brokersSpan =
+          brokers.length * BROKER_CHIP_W + Math.max(0, brokers.length - 1) * INNER_GAP
+        const brokerLeft = cardCx - brokersSpan / 2
+        const brokerCy =
+          cardCy + metrics.height / 2 - CLUSTER_PAD - BROKER_CHIP_H / 2
+        brokers.forEach((bid, i) => {
+          positions.set(bid, {
+            x: brokerLeft + BROKER_CHIP_W / 2 + i * (BROKER_CHIP_W + INNER_GAP),
+            y: brokerCy,
+          })
+          parentOf.set(bid, kafkaId)
+          nestRole.set(bid, 'broker')
+          leafSize.set(bid, { width: BROKER_CHIP_W, height: BROKER_CHIP_H })
+        })
+      }
     })
   }
 
@@ -427,6 +471,8 @@ export function layoutGraphSmart(graph: AssetGraph, mode: LayoutMode = 'compact'
     .forEach((r) => {
       const ep = positions.get(r.source)
       if (!ep || positions.has(r.target)) return
+      // 若主机已被收进 Kafka 卡片，不再重复挂到程序下
+      if (parentOf.has(r.target)) return
       positions.set(r.target, {
         x: ep.x,
         y: ep.y + SAT_DY,
@@ -446,15 +492,17 @@ export function layoutGraphSmart(graph: AssetGraph, mode: LayoutMode = 'compact'
   const positioned: PositionedNode[] = view.nodes.map((n) => {
     const p = positions.get(n.id)!
     const meta = containerMeta.get(n.id)
+    const size = leafSize.get(n.id)
     const parentNodeId = parentOf.get(n.id) || null
     return {
       ...n,
       x: p.x,
       y: p.y,
-      width: meta?.width ?? NODE_WIDTH,
-      height: meta?.height ?? NODE_HEIGHT,
+      width: meta?.width ?? size?.width ?? NODE_WIDTH,
+      height: meta?.height ?? size?.height ?? NODE_HEIGHT,
       parentNodeId,
       isContainer: !!meta,
+      nestRole: nestRole.get(n.id) || null,
     }
   })
 
@@ -532,7 +580,7 @@ function resolveOverlaps(
   return result
 }
 
-/** 关系边：CONTAINS 改用嵌套框表达，不再画虚线；简洁只画部署；完整再画 Broker */
+/** 关系边：CONTAINS / 已收入卡片的 BROKER 不再画线；简洁只画部署 */
 export function visibleRelations(
   relations: GraphRelation[] | undefined,
   mode: LayoutMode,
@@ -541,7 +589,8 @@ export function visibleRelations(
   if (mode === 'compact') {
     return list.filter((r) => r.type === 'RUNS_ON')
   }
-  return list.filter((r) => r.type !== 'VIA_EXECUTOR' && r.type !== 'CONTAINS')
+  // 完整模式：包含与集群内 Broker 都用卡片表达
+  return list.filter((r) => r.type === 'RUNS_ON')
 }
 
 export function purposeLabel(purpose: string): string {

@@ -142,24 +142,35 @@ async function render() {
         height: h,
         shape: 'rect',
         zIndex: 0,
+        markup: [
+          { tagName: 'rect', selector: 'body' },
+          { tagName: 'rect', selector: 'header' },
+          { tagName: 'text', selector: 'label' },
+        ],
         attrs: {
           body: {
-            stroke: '#1d4ed8',
-            strokeWidth: 1.5,
-            strokeDasharray: '6 4',
-            fill: 'rgba(239, 246, 255, 0.72)',
-            rx: 14,
-            ry: 14,
+            stroke: '#94a3b8',
+            strokeWidth: 1.2,
+            fill: '#f8fafc',
+            rx: 12,
+            ry: 12,
+          },
+          header: {
+            refWidth: '100%',
+            height: 36,
+            stroke: 'none',
+            fill: '#e8eef5',
           },
           label: {
-            text: `${node.label}  ·  ${endpointTypeLabel(node.type)}`,
-            fill: '#1e3a8a',
-            fontSize: 12,
+            text: node.label,
+            fill: '#0f172a',
+            fontSize: 13,
+            fontWeight: 600,
             fontFamily: 'IBM Plex Sans, sans-serif',
             refX: 14,
-            refY: 14,
+            refY: 18,
             textAnchor: 'start',
-            textVerticalAnchor: 'top',
+            textVerticalAnchor: 'middle',
           },
         },
         data: node,
@@ -169,13 +180,14 @@ async function render() {
     leaves.forEach((node) => {
       const isExecutor = node.kind === 'EXECUTOR'
       const isHost = node.type === 'HOST'
+      const isBrokerChip = node.nestRole === 'broker'
+      const isTopicInner = node.nestRole === 'topic'
       const w = node.width ?? NODE_WIDTH
       const h = node.height ?? NODE_HEIGHT
       const parent = node.parentNodeId ? byId.get(node.parentNodeId) : null
 
       let x = node.x - w / 2
       let y = node.y - h / 2
-      // X6 子节点坐标相对父节点左上角
       if (parent?.isContainer) {
         const pw = parent.width ?? NODE_WIDTH
         const ph = parent.height ?? NODE_HEIGHT
@@ -193,22 +205,40 @@ async function render() {
         zIndex: 2,
         attrs: {
           body: {
-            stroke: isExecutor ? '#b45309' : isHost ? '#64748b' : '#1f4f46',
-            strokeWidth: isExecutor ? 2 : 1.5,
-            fill: isExecutor ? '#fff7ed' : isHost ? '#f8fafc' : '#ffffff',
-            rx: isExecutor ? 28 : 10,
-            ry: isExecutor ? 28 : 10,
+            stroke: isExecutor
+              ? '#b45309'
+              : isBrokerChip
+                ? '#94a3b8'
+                : isTopicInner
+                  ? '#1d4ed8'
+                  : isHost
+                    ? '#64748b'
+                    : '#1f4f46',
+            strokeWidth: isExecutor ? 2 : isBrokerChip ? 1 : 1.4,
+            fill: isExecutor
+              ? '#fff7ed'
+              : isBrokerChip
+                ? '#ffffff'
+                : isTopicInner
+                  ? '#ffffff'
+                  : isHost
+                    ? '#f8fafc'
+                    : '#ffffff',
+            rx: isExecutor ? 28 : isBrokerChip ? 8 : 10,
+            ry: isExecutor ? 28 : isBrokerChip ? 8 : 10,
           },
           label: {
             text: isExecutor
               ? `${node.label}\n程序`
-              : `${node.label}\n${endpointTypeLabel(node.type)}`,
+              : isBrokerChip
+                ? node.label
+                : `${node.label}\n${endpointTypeLabel(node.type)}`,
             fill: '#0f172a',
-            fontSize: 12,
+            fontSize: isBrokerChip ? 11 : 12,
             fontFamily: 'IBM Plex Sans, sans-serif',
             textWrap: {
-              width: w - 16,
-              height: h - 12,
+              width: w - (isBrokerChip ? 8 : 16),
+              height: h - (isBrokerChip ? 6 : 12),
               ellipsis: true,
             },
           },
