@@ -44,79 +44,86 @@ const edgeMap = computed(() => {
   return map
 })
 
+let renderSeq = 0
+
 async function render() {
   const g = viewGraph.value
+  const currentMode = mode.value
   if (!containerRef.value || !g) return
+  const seq = ++renderSeq
   loading.value = true
   error.value = ''
   try {
-    if (!graphInstance) {
-      graphInstance = new Graph({
-        container: containerRef.value,
-        autoResize: true,
-        interacting: {
-          nodeMovable: true,
-          edgeMovable: false,
-          arrowheadMovable: false,
-          vertexMovable: false,
-          vertexAddable: false,
-          vertexDeletable: false,
-        },
-        panning: {
-          enabled: true,
-          eventTypes: ['leftMouseDown', 'mouseWheelDown'],
-        },
-        mousewheel: {
-          enabled: true,
-          modifiers: null,
-          factor: 1.12,
-          minScale: 0.2,
-          maxScale: 3,
-          zoomAtMousePosition: true,
-        },
-        background: {
-          color: '#f4f7f5',
-        },
-        grid: {
-          visible: true,
-          type: 'dot',
-          args: {
-            color: '#d7e0db',
-            thickness: 1,
-          },
-        },
-        connecting: {
-          router: {
-            name: 'orth',
-            args: { padding: 12 },
-          },
-          connector: {
-            name: 'rounded',
-            args: { radius: 8 },
-          },
-        },
-      })
-      graphInstance.use(new Export())
-      containerRef.value.style.touchAction = 'none'
-
-      graphInstance.on('edge:click', ({ edge }) => {
-        const data = edge.getData() as { kind?: string } | GraphEdge | undefined
-        if (data && 'kind' in data && data.kind === 'relation') {
-          emit('selectEdge', null)
-          return
-        }
-        const flow =
-          (data as GraphEdge | undefined)
-          ?? edgeMap.value.get(String(edge.id))
-          ?? null
-        emit('selectEdge', flow)
-      })
-      graphInstance.on('blank:click', () => emit('selectEdge', null))
-      graphInstance.on('node:click', () => emit('selectEdge', null))
+    if (graphInstance) {
+      graphInstance.dispose()
+      graphInstance = null
     }
 
-    const positioned = await layoutGraph(g, mode.value)
-    graphInstance.clearCells()
+    graphInstance = new Graph({
+      container: containerRef.value,
+      autoResize: true,
+      interacting: {
+        nodeMovable: true,
+        edgeMovable: false,
+        arrowheadMovable: false,
+        vertexMovable: false,
+        vertexAddable: false,
+        vertexDeletable: false,
+      },
+      panning: {
+        enabled: true,
+        eventTypes: ['leftMouseDown', 'mouseWheelDown'],
+      },
+      mousewheel: {
+        enabled: true,
+        modifiers: null,
+        factor: 1.12,
+        minScale: 0.2,
+        maxScale: 3,
+        zoomAtMousePosition: true,
+      },
+      background: {
+        color: '#f4f7f5',
+      },
+      grid: {
+        visible: true,
+        type: 'dot',
+        args: {
+          color: '#d7e0db',
+          thickness: 1,
+        },
+      },
+      connecting: {
+        router: {
+          name: 'orth',
+          args: { padding: 12 },
+        },
+        connector: {
+          name: 'rounded',
+          args: { radius: 8 },
+        },
+      },
+    })
+    graphInstance.use(new Export())
+    containerRef.value.style.touchAction = 'none'
+
+    graphInstance.on('edge:click', ({ edge }) => {
+      const data = edge.getData() as { kind?: string } | GraphEdge | undefined
+      if (data && 'kind' in data && data.kind === 'relation') {
+        emit('selectEdge', null)
+        return
+      }
+      const flow =
+        (data as GraphEdge | undefined)
+        ?? edgeMap.value.get(String(edge.id))
+        ?? null
+      emit('selectEdge', flow)
+    })
+    graphInstance.on('blank:click', () => emit('selectEdge', null))
+    graphInstance.on('node:click', () => emit('selectEdge', null))
+
+    const positioned = await layoutGraph(g, currentMode)
+    if (seq !== renderSeq || !graphInstance) return
 
     positioned.forEach((node) => {
       const isExecutor = node.kind === 'EXECUTOR'
@@ -207,7 +214,7 @@ async function render() {
       })
     })
 
-    visibleRelations(g.relations, mode.value).forEach((rel) => {
+    visibleRelations(g.relations, currentMode).forEach((rel) => {
       const isRunsOn = rel.type === 'RUNS_ON'
       const stroke = isRunsOn
         ? '#c2410c'
@@ -265,11 +272,13 @@ async function render() {
       })
     })
 
+    if (seq !== renderSeq || !graphInstance) return
     graphInstance.zoomToFit({ padding: 40, maxScale: 1.2 })
   } catch (e) {
+    if (seq !== renderSeq) return
     error.value = e instanceof Error ? e.message : '成图失败'
   } finally {
-    loading.value = false
+    if (seq === renderSeq) loading.value = false
   }
 }
 
