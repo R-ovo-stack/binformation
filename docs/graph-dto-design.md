@@ -120,10 +120,12 @@ GET /api/assets/{assetId}/graph?includeAuxiliary=false
 |---|---|---|
 | id | string | 关系 ID |
 | source / target | string | 节点 ID |
-| type | string | `CONTAINS`（Kafka→主题）/ `BROKER_OF`（Kafka→Broker主机） |
+| type | string | `CONTAINS` / `BROKER_OF` / `RUNS_ON`（程序→部署主机）/ `VIA_EXECUTOR`（源→程序→目标） |
 | label | string | 展示文案 |
 
-成图时自动补齐：主题所属 Kafka 集群，以及同系统下 `role=kafka-broker` 的主机节点。
+成图时自动补齐：
+- 主题所属 Kafka 集群，以及同系统下 `role=kafka-broker` 的主机
+- 流步骤中的程序/脚本节点，及其 `部署于` 主机关系
 
 ---
 

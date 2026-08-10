@@ -49,6 +49,7 @@ curl http://localhost:8080/api/assets/1/graph
 
 - [库表字段设计](docs/schema-design.md)
 - [GraphDTO 设计](docs/graph-dto-design.md)
+- [样例数据资产一览](docs/sample-assets.md)
 - [前端说明](frontend/README.md)
 
 ## 构建
