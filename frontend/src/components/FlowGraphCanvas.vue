@@ -125,20 +125,75 @@ async function render() {
     const positioned = await layoutGraph(g, currentMode)
     if (seq !== renderSeq || !graphInstance) return
 
-    positioned.forEach((node) => {
-      const isExecutor = node.kind === 'EXECUTOR'
-      const isHost = node.type === 'HOST'
-      const isKafka = node.type === 'KAFKA' || node.type === 'ROCKETMQ'
+    const byId = new Map(positioned.map((n) => [n.id, n]))
+
+    // 先放大框（容器），再加子节点并挂到父节点下
+    const containers = positioned.filter((n) => n.isContainer)
+    const leaves = positioned.filter((n) => !n.isContainer)
+
+    containers.forEach((node) => {
+      const w = node.width ?? NODE_WIDTH
+      const h = node.height ?? NODE_HEIGHT
       graphInstance!.addNode({
         id: node.id,
-        x: node.x - NODE_WIDTH / 2,
-        y: node.y - NODE_HEIGHT / 2,
-        width: NODE_WIDTH,
-        height: NODE_HEIGHT,
+        x: node.x - w / 2,
+        y: node.y - h / 2,
+        width: w,
+        height: h,
         shape: 'rect',
+        zIndex: 0,
         attrs: {
           body: {
-            stroke: isExecutor ? '#b45309' : isKafka ? '#1d4ed8' : isHost ? '#64748b' : '#1f4f46',
+            stroke: '#1d4ed8',
+            strokeWidth: 1.5,
+            strokeDasharray: '6 4',
+            fill: 'rgba(239, 246, 255, 0.72)',
+            rx: 14,
+            ry: 14,
+          },
+          label: {
+            text: `${node.label}  ·  ${endpointTypeLabel(node.type)}`,
+            fill: '#1e3a8a',
+            fontSize: 12,
+            fontFamily: 'IBM Plex Sans, sans-serif',
+            refX: 14,
+            refY: 14,
+            textAnchor: 'start',
+            textVerticalAnchor: 'top',
+          },
+        },
+        data: node,
+      })
+    })
+
+    leaves.forEach((node) => {
+      const isExecutor = node.kind === 'EXECUTOR'
+      const isHost = node.type === 'HOST'
+      const w = node.width ?? NODE_WIDTH
+      const h = node.height ?? NODE_HEIGHT
+      const parent = node.parentNodeId ? byId.get(node.parentNodeId) : null
+
+      let x = node.x - w / 2
+      let y = node.y - h / 2
+      // X6 子节点坐标相对父节点左上角
+      if (parent?.isContainer) {
+        const pw = parent.width ?? NODE_WIDTH
+        const ph = parent.height ?? NODE_HEIGHT
+        x = node.x - w / 2 - (parent.x - pw / 2)
+        y = node.y - h / 2 - (parent.y - ph / 2)
+      }
+
+      const child = graphInstance!.addNode({
+        id: node.id,
+        x,
+        y,
+        width: w,
+        height: h,
+        shape: 'rect',
+        zIndex: 2,
+        attrs: {
+          body: {
+            stroke: isExecutor ? '#b45309' : isHost ? '#64748b' : '#1f4f46',
             strokeWidth: isExecutor ? 2 : 1.5,
             fill: isExecutor ? '#fff7ed' : isHost ? '#f8fafc' : '#ffffff',
             rx: isExecutor ? 28 : 10,
@@ -152,14 +207,21 @@ async function render() {
             fontSize: 12,
             fontFamily: 'IBM Plex Sans, sans-serif',
             textWrap: {
-              width: NODE_WIDTH - 16,
-              height: NODE_HEIGHT - 12,
+              width: w - 16,
+              height: h - 12,
               ellipsis: true,
             },
           },
         },
         data: node,
       })
+
+      if (node.parentNodeId) {
+        const parentCell = graphInstance!.getCellById(node.parentNodeId)
+        if (parentCell && parentCell.isNode()) {
+          parentCell.addChild(child)
+        }
+      }
     })
 
     expandDisplayEdges(g).forEach((edge) => {

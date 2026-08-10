@@ -10,9 +10,21 @@ const ROW_IN_LANE = 120
 const SAT_DY = 118
 
 export interface PositionedNode extends GraphNode {
+  /** 节点中心 X（叶子）或容器中心 X */
   x: number
   y: number
+  width?: number
+  height?: number
+  /** CONTAINS 父节点 id：子节点嵌在大框内 */
+  parentNodeId?: string | null
+  /** 是否为包含框（如 Kafka 集群） */
+  isContainer?: boolean
 }
+
+const CONTAINER_PAD_X = 28
+const CONTAINER_PAD_TOP = 44
+const CONTAINER_PAD_BOTTOM = 24
+const CONTAINER_GAP = 16
 
 /** 画布上实际绘制的边（把流向展开成 源→程序→目标） */
 export interface DisplayEdge {
@@ -237,7 +249,7 @@ function barycenter(
  * 1) 流向按步骤展开后拓扑分层（左→右）
  * 2) 安全区做水平泳道（上→下）
  * 3) 层内用邻接重心减少交叉
- * 4) Kafka/Broker/部署主机作卫星就近挂载
+ * 4) 完整模式：CONTAINS 画成大框套小框；Broker / 部署主机作卫星
  */
 export function layoutGraphSmart(graph: AssetGraph, mode: LayoutMode = 'compact'): PositionedNode[] {
   const view = filterGraphForMode(graph, mode)
@@ -249,6 +261,8 @@ export function layoutGraphSmart(graph: AssetGraph, mode: LayoutMode = 'compact'
         ...n,
         x: n.layoutX ?? 100 + (i % 4) * COL_GAP,
         y: n.layoutY ?? 100 + Math.floor(i / 4) * ROW_IN_LANE,
+        width: NODE_WIDTH,
+        height: NODE_HEIGHT,
       })),
     )
   }
@@ -261,7 +275,7 @@ export function layoutGraphSmart(graph: AssetGraph, mode: LayoutMode = 'compact'
     mainIds.add(e.target)
   })
 
-  // 主链节点：落点 + 程序；主机/Kafka/Broker 作为卫星
+  // 主链：落点+程序；HOST /（完整模式）Kafka 容器先不当脊柱点
   const isSatellite = (n: GraphNode) => {
     if (n.kind === 'EXECUTOR') return false
     if (n.type === 'HOST') return true
@@ -297,7 +311,6 @@ export function layoutGraphSmart(graph: AssetGraph, mode: LayoutMode = 'compact'
   const sortedLayers = [...byLayer.keys()].sort((a, b) => a - b)
   const roughY = new Map<string, number>()
 
-  // 先按泳道给粗 Y，再按层精排
   spineIds.forEach((id) => {
     const n = map.get(id)!
     roughY.set(id, 160 + zoneIndex(n) * LANE_GAP)
@@ -320,7 +333,6 @@ export function layoutGraphSmart(graph: AssetGraph, mode: LayoutMode = 'compact'
       return (na.label || '').localeCompare(nb.label || '', 'zh')
     })
 
-    // 同层按区分组，区内再错开
     const usedInLane = new Map<number, number>()
     const x = 140 + layerNo * COL_GAP
     ids.forEach((id) => {
@@ -335,20 +347,57 @@ export function layoutGraphSmart(graph: AssetGraph, mode: LayoutMode = 'compact'
   })
 
   const allRelations = mode === 'full' ? graph.relations || [] : view.relations || []
+  const parentOf = new Map<string, string>()
+  const childrenOf = new Map<string, string[]>()
+  const containerMeta = new Map<string, { width: number; height: number; x: number; y: number }>()
 
   if (mode === 'full') {
-    // Kafka 在 Topic 上方
     allRelations
       .filter((r) => r.type === 'CONTAINS')
       .forEach((r) => {
-        const topicPos = positions.get(r.target)
-        if (!topicPos || positions.has(r.source)) return
-        positions.set(r.source, {
-          x: topicPos.x,
-          y: topicPos.y - SAT_DY,
-        })
+        if (!positions.has(r.target)) return
+        parentOf.set(r.target, r.source)
+        if (!childrenOf.has(r.source)) childrenOf.set(r.source, [])
+        childrenOf.get(r.source)!.push(r.target)
       })
 
+    // 大框包小框：按子节点包围盒生成父容器
+    childrenOf.forEach((childIds, parentId) => {
+      const kids = childIds
+        .map((id) => positions.get(id))
+        .filter((p): p is { x: number; y: number } => !!p)
+      if (!kids.length) return
+
+      // 多个子节点横向排开（同父）
+      if (kids.length > 1) {
+        const sorted = [...childIds].sort((a, b) => {
+          const pa = positions.get(a)!
+          const pb = positions.get(b)!
+          return pa.y - pb.y || pa.x - pb.x
+        })
+        const base = positions.get(sorted[0])!
+        sorted.forEach((id, i) => {
+          positions.set(id, {
+            x: base.x + i * (NODE_WIDTH + CONTAINER_GAP),
+            y: base.y,
+          })
+        })
+      }
+
+      const placed = childIds.map((id) => positions.get(id)!)
+      const minX = Math.min(...placed.map((p) => p.x - NODE_WIDTH / 2))
+      const maxX = Math.max(...placed.map((p) => p.x + NODE_WIDTH / 2))
+      const minY = Math.min(...placed.map((p) => p.y - NODE_HEIGHT / 2))
+      const maxY = Math.max(...placed.map((p) => p.y + NODE_HEIGHT / 2))
+      const width = maxX - minX + CONTAINER_PAD_X * 2
+      const height = maxY - minY + CONTAINER_PAD_TOP + CONTAINER_PAD_BOTTOM
+      const cx = (minX + maxX) / 2
+      const cy = minY - CONTAINER_PAD_TOP + height / 2
+      positions.set(parentId, { x: cx, y: cy })
+      containerMeta.set(parentId, { width, height, x: cx, y: cy })
+    })
+
+    // Broker 挂在 Kafka 大框下方外侧
     const brokersByKafka = new Map<string, string[]>()
     allRelations
       .filter((r) => r.type === 'BROKER_OF')
@@ -359,28 +408,25 @@ export function layoutGraphSmart(graph: AssetGraph, mode: LayoutMode = 'compact'
 
     brokersByKafka.forEach((brokers, kafkaId) => {
       const kp = positions.get(kafkaId)
+      const meta = containerMeta.get(kafkaId)
       if (!kp) return
+      const boxBottom = meta ? kp.y + meta.height / 2 : kp.y + NODE_HEIGHT / 2
       brokers.forEach((bid, i) => {
         if (positions.has(bid)) return
         const offset = (i - (brokers.length - 1) / 2) * (NODE_WIDTH + 24)
         positions.set(bid, {
           x: kp.x + offset,
-          y: kp.y + SAT_DY,
+          y: boxBottom + SAT_DY / 2 + NODE_HEIGHT / 2,
         })
       })
     })
   }
 
-  // 部署主机挂在程序下方；多程序同主机只放一次（靠第一个程序）
   allRelations
     .filter((r) => r.type === 'RUNS_ON')
     .forEach((r) => {
       const ep = positions.get(r.source)
-      if (!ep) return
-      if (positions.has(r.target)) {
-        // 已有位置时，若仍重叠则略偏移
-        return
-      }
+      if (!ep || positions.has(r.target)) return
       positions.set(r.target, {
         x: ep.x,
         y: ep.y + SAT_DY,
@@ -399,37 +445,85 @@ export function layoutGraphSmart(graph: AssetGraph, mode: LayoutMode = 'compact'
 
   const positioned: PositionedNode[] = view.nodes.map((n) => {
     const p = positions.get(n.id)!
-    return { ...n, x: p.x, y: p.y }
+    const meta = containerMeta.get(n.id)
+    const parentNodeId = parentOf.get(n.id) || null
+    return {
+      ...n,
+      x: p.x,
+      y: p.y,
+      width: meta?.width ?? NODE_WIDTH,
+      height: meta?.height ?? NODE_HEIGHT,
+      parentNodeId,
+      isContainer: !!meta,
+    }
   })
 
-  return resolveOverlaps(positioned)
+  return resolveOverlaps(positioned, parentOf)
+}
+
+function nodeHalfSize(n: PositionedNode): { hw: number; hh: number } {
+  return {
+    hw: (n.width ?? NODE_WIDTH) / 2,
+    hh: (n.height ?? NODE_HEIGHT) / 2,
+  }
 }
 
 function overlaps(a: PositionedNode, b: PositionedNode): boolean {
-  return (
-    Math.abs(a.x - b.x) < NODE_WIDTH + 40 &&
-    Math.abs(a.y - b.y) < NODE_HEIGHT + 32
-  )
+  const sa = nodeHalfSize(a)
+  const sb = nodeHalfSize(b)
+  return Math.abs(a.x - b.x) < sa.hw + sb.hw + 24 && Math.abs(a.y - b.y) < sa.hh + sb.hh + 20
 }
 
-function resolveOverlaps(nodes: PositionedNode[]): PositionedNode[] {
+function resolveOverlaps(
+  nodes: PositionedNode[],
+  parentOf: Map<string, string> = new Map(),
+): PositionedNode[] {
   const result = nodes.map((n) => ({ ...n }))
+  const byId = new Map(result.map((n) => [n.id, n]))
+
+  const related = (a: string, b: string) =>
+    parentOf.get(a) === b || parentOf.get(b) === a
+
   for (let iter = 0; iter < 20; iter++) {
     let moved = false
     for (let i = 0; i < result.length; i++) {
       for (let j = i + 1; j < result.length; j++) {
         const a = result[i]
         const b = result[j]
+        if (related(a.id, b.id)) continue
+        // 同属一个大框的子节点不互推（由容器排布）
+        if (parentOf.get(a.id) && parentOf.get(a.id) === parentOf.get(b.id)) continue
         if (!overlaps(a, b)) continue
+
         const dy = (b.y - a.y) || 1
         const sign = dy >= 0 ? 1 : -1
-        a.y -= sign * 22
-        b.y += sign * 22
-        // 同层也拉开一点 X
-        if (Math.abs(a.x - b.x) < 8) {
-          a.x -= 12
-          b.x += 12
+        const nudge = 22
+
+        const shift = (node: PositionedNode, ddy: number, ddx: number) => {
+          node.y += ddy
+          node.x += ddx
+          // 容器移动时带着孩子一起动
+          if (node.isContainer) {
+            result.forEach((child) => {
+              if (parentOf.get(child.id) === node.id) {
+                child.y += ddy
+                child.x += ddx
+              }
+            })
+          }
+          // 孩子移动时带着父容器
+          const pid = parentOf.get(node.id)
+          if (pid) {
+            const parent = byId.get(pid)
+            if (parent) {
+              parent.y += ddy
+              parent.x += ddx
+            }
+          }
         }
+
+        shift(a, -sign * nudge, Math.abs(a.x - b.x) < 8 ? -12 : 0)
+        shift(b, sign * nudge, Math.abs(a.x - b.x) < 8 ? 12 : 0)
         moved = true
       }
     }
@@ -438,7 +532,7 @@ function resolveOverlaps(nodes: PositionedNode[]): PositionedNode[] {
   return result
 }
 
-/** 关系边：简洁只画部署；完整画拓扑，不画 VIA（已并入主链路展开） */
+/** 关系边：CONTAINS 改用嵌套框表达，不再画虚线；简洁只画部署；完整再画 Broker */
 export function visibleRelations(
   relations: GraphRelation[] | undefined,
   mode: LayoutMode,
@@ -447,7 +541,7 @@ export function visibleRelations(
   if (mode === 'compact') {
     return list.filter((r) => r.type === 'RUNS_ON')
   }
-  return list.filter((r) => r.type !== 'VIA_EXECUTOR')
+  return list.filter((r) => r.type !== 'VIA_EXECUTOR' && r.type !== 'CONTAINS')
 }
 
 export function purposeLabel(purpose: string): string {

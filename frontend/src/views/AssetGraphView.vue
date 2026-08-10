@@ -106,7 +106,7 @@ onMounted(() => {
       </div>
     </header>
 
-    <p class="mobile-tip">简洁=按步骤展开主链路（源→程序→目标）+部署；完整=再挂 Kafka/Broker。可拖节点，右下角缩放。</p>
+    <p class="mobile-tip">简洁=主链路；完整=Kafka大框套主题，Broker在框外。可拖节点，右下角缩放。</p>
 
     <div class="workspace">
       <FlowGraphCanvas
