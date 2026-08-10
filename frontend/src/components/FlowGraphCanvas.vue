@@ -135,8 +135,6 @@ async function render() {
     const positioned = await layoutGraph(g, currentMode)
     if (seq !== renderSeq || !graphInstance) return
 
-    const byId = new Map(positioned.map((n) => [n.id, n]))
-
     // 先放大框（容器），再加子节点并挂到父节点下
     const containers = positioned.filter((n) => n.isContainer)
     const leaves = positioned.filter((n) => !n.isContainer)
@@ -157,12 +155,13 @@ async function render() {
           { tagName: 'rect', selector: 'body' },
           { tagName: 'rect', selector: 'header' },
           { tagName: 'text', selector: 'label' },
+          { tagName: 'text', selector: 'hint' },
         ],
         attrs: {
           body: {
-            stroke: '#94a3b8',
-            strokeWidth: 1.2,
-            fill: '#f8fafc',
+            stroke: '#64748b',
+            strokeWidth: 1.4,
+            fill: '#f1f5f9',
             rx: 12,
             ry: 12,
           },
@@ -170,7 +169,7 @@ async function render() {
             refWidth: '100%',
             height: 36,
             stroke: 'none',
-            fill: '#e8eef5',
+            fill: '#dbe4ee',
           },
           label: {
             text: node.label,
@@ -181,6 +180,17 @@ async function render() {
             refX: 14,
             refY: 18,
             textAnchor: 'start',
+            textVerticalAnchor: 'middle',
+          },
+          hint: {
+            text: 'Kafka 集群',
+            fill: '#64748b',
+            fontSize: 11,
+            fontFamily: 'IBM Plex Sans, sans-serif',
+            refX: '100%',
+            refX2: -12,
+            refY: 18,
+            textAnchor: 'end',
             textVerticalAnchor: 'middle',
           },
         },
@@ -195,18 +205,13 @@ async function render() {
       const isTopicInner = node.nestRole === 'topic'
       const w = node.width ?? NODE_WIDTH
       const h = node.height ?? NODE_HEIGHT
-      const parent = node.parentNodeId ? byId.get(node.parentNodeId) : null
 
-      let x = node.x - w / 2
-      let y = node.y - h / 2
-      if (parent?.isContainer) {
-        const pw = parent.width ?? NODE_WIDTH
-        const ph = parent.height ?? NODE_HEIGHT
-        x = node.x - w / 2 - (parent.x - pw / 2)
-        y = node.y - h / 2 - (parent.y - ph / 2)
-      }
-
+      // 必须用绝对坐标 addNode，再 addChild，由 X6 转为相对坐标。
+      // 若先传相对坐标再 addChild，会被二次换算，Broker 会掉到卡片外。
+      const x = node.x - w / 2
+      const y = node.y - h / 2
       const lockedInside = !!node.parentNodeId
+
       const child = graphInstance!.addNode({
         id: node.id,
         x,
@@ -221,7 +226,7 @@ async function render() {
             stroke: isExecutor
               ? '#b45309'
               : isBrokerChip
-                ? '#94a3b8'
+                ? '#64748b'
                 : isTopicInner
                   ? '#1d4ed8'
                   : isHost
@@ -263,8 +268,6 @@ async function render() {
         const parentCell = graphInstance!.getCellById(node.parentNodeId)
         if (parentCell && parentCell.isNode()) {
           parentCell.addChild(child)
-          // 固化父子：禁止单独拖出/拖入
-          child.setParent(parentCell)
           child.prop('movable', false)
         }
       }

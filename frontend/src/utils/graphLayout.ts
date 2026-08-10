@@ -529,8 +529,20 @@ function resolveOverlaps(
   const result = nodes.map((n) => ({ ...n }))
   const byId = new Map(result.map((n) => [n.id, n]))
 
-  const related = (a: string, b: string) =>
-    parentOf.get(a) === b || parentOf.get(b) === a
+  const rootIdOf = (id: string): string => parentOf.get(id) || id
+
+  const moveRoot = (rootId: string, ddx: number, ddy: number) => {
+    const root = byId.get(rootId)
+    if (!root) return
+    root.x += ddx
+    root.y += ddy
+    result.forEach((child) => {
+      if (parentOf.get(child.id) === rootId) {
+        child.x += ddx
+        child.y += ddy
+      }
+    })
+  }
 
   for (let iter = 0; iter < 20; iter++) {
     let moved = false
@@ -538,40 +550,18 @@ function resolveOverlaps(
       for (let j = i + 1; j < result.length; j++) {
         const a = result[i]
         const b = result[j]
-        if (related(a.id, b.id)) continue
-        // 同属一个大框的子节点不互推（由容器排布）
-        if (parentOf.get(a.id) && parentOf.get(a.id) === parentOf.get(b.id)) continue
+        const ra = rootIdOf(a.id)
+        const rb = rootIdOf(b.id)
+        // 同一集群卡片内不互推
+        if (ra === rb) continue
         if (!overlaps(a, b)) continue
 
         const dy = (b.y - a.y) || 1
         const sign = dy >= 0 ? 1 : -1
-        const nudge = 22
-
-        const shift = (node: PositionedNode, ddy: number, ddx: number) => {
-          node.y += ddy
-          node.x += ddx
-          // 容器移动时带着孩子一起动
-          if (node.isContainer) {
-            result.forEach((child) => {
-              if (parentOf.get(child.id) === node.id) {
-                child.y += ddy
-                child.x += ddx
-              }
-            })
-          }
-          // 孩子移动时带着父容器
-          const pid = parentOf.get(node.id)
-          if (pid) {
-            const parent = byId.get(pid)
-            if (parent) {
-              parent.y += ddy
-              parent.x += ddx
-            }
-          }
-        }
-
-        shift(a, -sign * nudge, Math.abs(a.x - b.x) < 8 ? -12 : 0)
-        shift(b, sign * nudge, Math.abs(a.x - b.x) < 8 ? 12 : 0)
+        const nudgeY = 24
+        const nudgeX = Math.abs(a.x - b.x) < 8 ? 14 : 0
+        moveRoot(ra, -nudgeX, -sign * nudgeY)
+        moveRoot(rb, nudgeX, sign * nudgeY)
         moved = true
       }
     }
