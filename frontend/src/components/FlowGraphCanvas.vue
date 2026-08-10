@@ -9,6 +9,7 @@ import {
   endpointTypeLabel,
   layoutGraph,
   purposeLabel,
+  visibleRelations,
 } from '@/utils/graphLayout'
 
 const props = defineProps<{
@@ -203,7 +204,7 @@ async function render() {
       })
     })
 
-    ;(props.graph.relations ?? []).forEach((rel) => {
+    visibleRelations(props.graph.relations).forEach((rel) => {
       const isRunsOn = rel.type === 'RUNS_ON'
       const isVia = rel.type === 'VIA_EXECUTOR'
       const stroke = isRunsOn ? '#c2410c' : isVia ? '#a8a29e' : '#94a3b8'
@@ -251,7 +252,7 @@ async function render() {
         },
         router: {
           name: 'orth',
-          args: { padding: 8 },
+          args: { padding: 10 },
         },
         connector: {
           name: 'rounded',
