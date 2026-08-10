@@ -63,12 +63,22 @@ async function render() {
       container: containerRef.value,
       autoResize: true,
       interacting: {
-        nodeMovable: true,
+        // 包含关系固化：只能拖集群卡片/独立节点，禁止拖内部主题与 Broker
+        nodeMovable(view) {
+          const cell = view.cell
+          if (cell.getParent()) return false
+          const data = cell.getData() as { parentNodeId?: string | null } | undefined
+          if (data?.parentNodeId) return false
+          return true
+        },
         edgeMovable: false,
         arrowheadMovable: false,
         vertexMovable: false,
         vertexAddable: false,
         vertexDeletable: false,
+      },
+      embedding: {
+        enabled: false,
       },
       panning: {
         enabled: true,
@@ -142,6 +152,7 @@ async function render() {
         height: h,
         shape: 'rect',
         zIndex: 0,
+        movable: true,
         markup: [
           { tagName: 'rect', selector: 'body' },
           { tagName: 'rect', selector: 'header' },
@@ -195,6 +206,7 @@ async function render() {
         y = node.y - h / 2 - (parent.y - ph / 2)
       }
 
+      const lockedInside = !!node.parentNodeId
       const child = graphInstance!.addNode({
         id: node.id,
         x,
@@ -203,6 +215,7 @@ async function render() {
         height: h,
         shape: 'rect',
         zIndex: 2,
+        movable: !lockedInside,
         attrs: {
           body: {
             stroke: isExecutor
@@ -250,6 +263,9 @@ async function render() {
         const parentCell = graphInstance!.getCellById(node.parentNodeId)
         if (parentCell && parentCell.isNode()) {
           parentCell.addChild(child)
+          // 固化父子：禁止单独拖出/拖入
+          child.setParent(parentCell)
+          child.prop('movable', false)
         }
       }
     })
