@@ -12,6 +12,7 @@
 | 203 | 原始客户主数据文件 | `ASSET_RAW_CUSTOMER` | FILE | 原始文件接入（派生输入） |
 | 204 | 规范持仓数据 | `ASSET_NORM_POSITION` | FILE | 多源派生/加工 + 对外共享 |
 | 205 | 应用日志直推 | `ASSET_APP_LOG_DIRECT` | FILE | 目录直推 |
+| 300 | GZ故障文件拉取 | `ASSET_FAULT_GZ_PULL` | FILE | idc301 脚本从 idc302:/data/origin/gz 下载到 idc301:/data/sftp/gz |
 
 ## 建议体验路径
 

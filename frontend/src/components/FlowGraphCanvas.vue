@@ -183,7 +183,7 @@ async function render() {
             textVerticalAnchor: 'middle',
           },
           hint: {
-            text: 'Kafka 集群',
+            text: node.type === 'HOST' ? '主机' : 'Kafka 集群',
             fill: '#64748b',
             fontSize: 11,
             fontFamily: 'IBM Plex Sans, sans-serif',

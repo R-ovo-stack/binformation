@@ -297,7 +297,7 @@ export function layoutGraphSmart(graph: AssetGraph, mode: LayoutMode = 'compact'
     mainIds.add(e.target)
   })
 
-  // 主链：落点+程序；HOST /（完整模式）Kafka 容器先不当脊柱点
+  // 主链：落点+程序；HOST /（完整模式）Kafka|主机容器先不当脊柱点
   const isSatellite = (n: GraphNode) => {
     if (n.kind === 'EXECUTOR') return false
     if (n.type === 'HOST') return true
@@ -380,9 +380,15 @@ export function layoutGraphSmart(graph: AssetGraph, mode: LayoutMode = 'compact'
       .filter((r) => r.type === 'CONTAINS')
       .forEach((r) => {
         if (!positions.has(r.target) && !map.has(r.target)) return
-        // 主题可能已在脊柱上；父 Kafka 一定在 view.nodes 里
         parentOf.set(r.target, r.source)
-        nestRole.set(r.target, 'topic')
+        const childNode = map.get(r.target)
+        const role =
+          childNode?.type === 'KAFKA_TOPIC' || childNode?.type === 'ROCKETMQ_TOPIC'
+            ? 'topic'
+            : childNode?.type === 'DIRECTORY'
+              ? 'topic' // 目录也用内容区主块样式
+              : 'topic'
+        nestRole.set(r.target, role)
         if (!childrenOf.has(r.source)) childrenOf.set(r.source, [])
         if (!childrenOf.get(r.source)!.includes(r.target)) {
           childrenOf.get(r.source)!.push(r.target)
@@ -601,6 +607,7 @@ export function methodLabel(method: string): string {
     KAFKA_SUBSCRIBE_FORWARD: '订阅转发',
     NOTIFY_THEN_PULL: '通知+拉取',
     NOTIFY_THEN_SHARED_READ: '通知+共享读取',
+    SCRIPT_PULL: '脚本拉取',
     OTHER: '其他',
   }
   return map[method] ?? method

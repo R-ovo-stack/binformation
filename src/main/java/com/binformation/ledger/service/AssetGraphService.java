@@ -115,6 +115,7 @@ public class AssetGraphService {
 
         List<GraphRelationDto> relations = new ArrayList<>();
         relations.addAll(enrichKafkaTopology(endpointIds, allEndpoints));
+        relations.addAll(enrichDirectoryHostTopology(endpointIds, allEndpoints));
 
         Map<Long, FlowLayout> layoutByEndpoint = flowLayoutMapper.selectList(
                         new LambdaQueryWrapper<FlowLayout>().eq(FlowLayout::getAssetId, assetId))
@@ -213,6 +214,36 @@ public class AssetGraphService {
             }
         }
 
+        return relations;
+    }
+
+    /**
+     * 目录落点补齐所属主机：HOST CONTAINS DIRECTORY，便于成图表现「机上的目录」。
+     */
+    private List<GraphRelationDto> enrichDirectoryHostTopology(
+            Set<Long> endpointIds,
+            Map<Long, Endpoint> allEndpoints) {
+        List<GraphRelationDto> relations = new ArrayList<>();
+        Set<Long> seedIds = new HashSet<>(endpointIds);
+
+        for (Long id : seedIds) {
+            Endpoint endpoint = allEndpoints.get(id);
+            if (endpoint == null || !"DIRECTORY".equals(endpoint.getType()) || endpoint.getParentId() == null) {
+                continue;
+            }
+            Endpoint host = allEndpoints.get(endpoint.getParentId());
+            if (host == null || !"HOST".equals(host.getType())) {
+                continue;
+            }
+            endpointIds.add(host.getId());
+            relations.add(new GraphRelationDto(
+                    "rel-contains-dir-" + host.getId() + "-" + endpoint.getId(),
+                    EndpointSupport.nodeId(host.getId()),
+                    EndpointSupport.nodeId(endpoint.getId()),
+                    "CONTAINS",
+                    "包含目录"
+            ));
+        }
         return relations;
     }
 
