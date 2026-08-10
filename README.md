@@ -1,23 +1,37 @@
 # 数据中心台账（datacenter-ledger）
 
-数据资产流向台账与一键成图后端服务。
+数据资产流向台账与一键成图（后端 + 前端）。
 
 ## 技术栈
 
-- Java 21 + Spring Boot 3
-- H2（文件持久化）+ Flyway
-- MyBatis-Plus
-- SpringDoc OpenAPI
+- 后端：Java 21 + Spring Boot 3 + H2 + Flyway + MyBatis-Plus
+- 前端：Vue 3 + Element Plus + AntV X6 + @antv/layout
 
 ## 启动
+
+### 1. 后端
 
 ```bash
 mvn spring-boot:run
 ```
 
 - API：http://localhost:8080
-- Swagger UI：http://localhost:8080/swagger-ui.html
+- Swagger：http://localhost:8080/swagger-ui.html
 - H2 Console：http://localhost:8080/h2-console
+
+### 2. 前端（一键成图）
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+打开 http://localhost:5173 ：
+
+1. 进入资产列表
+2. 点击「订单文件数据」或「一键成图」
+3. 查看自动布局流向图，点击连线查看步骤
 
 ## 核心 API
 
@@ -27,10 +41,6 @@ mvn spring-boot:run
 | GET | `/api/assets/{id}` | 资产详情 |
 | GET | `/api/assets/{id}/graph` | 一键成图 GraphDTO |
 
-`includeAuxiliary=true` 可包含辅助流向。
-
-示例：
-
 ```bash
 curl http://localhost:8080/api/assets/1/graph
 ```
@@ -39,10 +49,11 @@ curl http://localhost:8080/api/assets/1/graph
 
 - [库表字段设计](docs/schema-design.md)
 - [GraphDTO 设计](docs/graph-dto-design.md)
+- [前端说明](frontend/README.md)
 
 ## 构建
 
 ```bash
 mvn test
-mvn package
+cd frontend && npm run build
 ```

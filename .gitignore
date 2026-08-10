@@ -5,3 +5,6 @@ data/
 .classpath
 .project
 .settings/
+frontend/node_modules/
+frontend/dist/
+frontend/.vscode/
