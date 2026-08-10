@@ -21,7 +21,7 @@ async function load() {
 }
 
 function openGraph(row: DataAsset) {
-  router.push(`/assets/${row.id}/graph`)
+  void router.push({ name: 'asset-graph', params: { id: String(row.id) } })
 }
 
 onMounted(load)

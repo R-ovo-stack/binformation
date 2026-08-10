@@ -66,7 +66,10 @@ async function render() {
       graphInstance.use(new Export())
 
       graphInstance.on('edge:click', ({ edge }) => {
-        emit('selectEdge', edgeMap.value.get(edge.id) ?? null)
+        const data = (edge.getData() as GraphEdge | undefined)
+          ?? edgeMap.value.get(String(edge.id))
+          ?? null
+        emit('selectEdge', data)
       })
       graphInstance.on('blank:click', () => emit('selectEdge', null))
       graphInstance.on('node:click', () => emit('selectEdge', null))
@@ -112,6 +115,10 @@ async function render() {
         id: edge.id,
         source: edge.source,
         target: edge.target,
+        markup: [
+          { tagName: 'path', selector: 'wrap' },
+          { tagName: 'path', selector: 'line' },
+        ],
         labels: [
           {
             attrs: {
@@ -120,6 +127,7 @@ async function render() {
                 fill: '#0f172a',
                 fontSize: 11,
                 fontFamily: 'IBM Plex Sans, sans-serif',
+                pointerEvents: 'none',
               },
               body: {
                 fill: '#ecf4f1',
@@ -127,13 +135,22 @@ async function render() {
                 strokeWidth: 1,
                 rx: 4,
                 ry: 4,
+                pointerEvents: 'none',
               },
             },
             position: 0.5,
           },
         ],
         attrs: {
+          wrap: {
+            fill: 'none',
+            connection: true,
+            stroke: 'transparent',
+            strokeWidth: 16,
+            cursor: 'pointer',
+          },
           line: {
+            connection: true,
             stroke,
             strokeWidth: edge.primary ? 2.5 : 1.5,
             strokeDasharray: edge.primary ? undefined : '6 4',
@@ -142,9 +159,11 @@ async function render() {
               width: 10,
               height: 8,
             },
+            cursor: 'pointer',
           },
         },
         data: edge,
+        zIndex: 1,
       })
     })
 
