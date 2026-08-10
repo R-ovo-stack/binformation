@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getAssetGraph } from '@/api/asset'
 import type { AssetGraph, GraphEdge } from '@/types/graph'
+import type { LayoutMode } from '@/utils/graphLayout'
 import FlowGraphCanvas from '@/components/FlowGraphCanvas.vue'
 import EdgeDetailPanel from '@/components/EdgeDetailPanel.vue'
 
@@ -14,6 +15,7 @@ const props = defineProps<{
 const router = useRouter()
 const loading = ref(false)
 const includeAuxiliary = ref(false)
+const layoutMode = ref<LayoutMode>('compact')
 const graph = ref<AssetGraph | null>(null)
 const selectedEdge = ref<GraphEdge | null>(null)
 const canvasRef = ref<InstanceType<typeof FlowGraphCanvas> | null>(null)
@@ -92,6 +94,10 @@ onMounted(() => {
           inactive-text="主流向"
           @change="regenerate"
         />
+        <el-radio-group v-model="layoutMode" size="small">
+          <el-radio-button value="compact">简洁</el-radio-button>
+          <el-radio-button value="full">完整</el-radio-button>
+        </el-radio-group>
         <el-button type="primary" :loading="loading" @click="regenerate">一键成图</el-button>
         <el-button @click="zoomOut">缩小</el-button>
         <el-button @click="zoomIn">放大</el-button>
@@ -100,10 +106,16 @@ onMounted(() => {
       </div>
     </header>
 
-    <p class="mobile-tip">单指拖节点可调整位置；拖空白处移动画布；右下角 + / − 缩放。</p>
+    <p class="mobile-tip">简洁=按步骤展开主链路（源→程序→目标）+部署；完整=再挂 Kafka/Broker。可拖节点，右下角缩放。</p>
 
     <div class="workspace">
-      <FlowGraphCanvas ref="canvasRef" class="canvas" :graph="graph" @select-edge="onSelectEdge" />
+      <FlowGraphCanvas
+        ref="canvasRef"
+        class="canvas"
+        :graph="graph"
+        :layout-mode="layoutMode"
+        @select-edge="onSelectEdge"
+      />
       <EdgeDetailPanel class="side" :edge="selectedEdge" />
     </div>
 

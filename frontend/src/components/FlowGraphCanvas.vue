@@ -7,13 +7,16 @@ import {
   NODE_WIDTH,
   edgeStroke,
   endpointTypeLabel,
+  expandDisplayEdges,
+  filterGraphForMode,
   layoutGraph,
-  purposeLabel,
   visibleRelations,
+  type LayoutMode,
 } from '@/utils/graphLayout'
 
 const props = defineProps<{
   graph: AssetGraph | null
+  layoutMode?: LayoutMode
 }>()
 
 const emit = defineEmits<{
@@ -25,14 +28,25 @@ const loading = ref(false)
 const error = ref('')
 let graphInstance: Graph | null = null
 
+const mode = computed<LayoutMode>(() => props.layoutMode || 'compact')
+
+const viewGraph = computed(() => {
+  if (!props.graph) return null
+  return filterGraphForMode(props.graph, mode.value)
+})
+
 const edgeMap = computed(() => {
   const map = new Map<string, GraphEdge>()
-  props.graph?.edges.forEach((edge) => map.set(edge.id, edge))
+  const g = viewGraph.value
+  if (!g) return map
+  expandDisplayEdges(g).forEach((edge) => map.set(edge.id, edge.flowEdge))
+  g.edges.forEach((edge) => map.set(edge.id, edge))
   return map
 })
 
 async function render() {
-  if (!containerRef.value || !props.graph) return
+  const g = viewGraph.value
+  if (!containerRef.value || !g) return
   loading.value = true
   error.value = ''
   try {
@@ -50,7 +64,6 @@ async function render() {
         },
         panning: {
           enabled: true,
-          // 空白处拖动画布；点在节点上则拖节点
           eventTypes: ['leftMouseDown', 'mouseWheelDown'],
         },
         mousewheel: {
@@ -72,7 +85,6 @@ async function render() {
             thickness: 1,
           },
         },
-        // 默认用 orth，拖动时比 manhattan 更稳，减少箭头黑三角
         connecting: {
           router: {
             name: 'orth',
@@ -85,7 +97,6 @@ async function render() {
         },
       })
       graphInstance.use(new Export())
-
       containerRef.value.style.touchAction = 'none'
 
       graphInstance.on('edge:click', ({ edge }) => {
@@ -104,26 +115,25 @@ async function render() {
       graphInstance.on('node:click', () => emit('selectEdge', null))
     }
 
-    const positioned = await layoutGraph(props.graph)
+    const positioned = await layoutGraph(g, mode.value)
     graphInstance.clearCells()
 
     positioned.forEach((node) => {
       const isExecutor = node.kind === 'EXECUTOR'
-      const isBroker = node.type === 'HOST'
-      const isKafka = node.type === 'KAFKA'
+      const isHost = node.type === 'HOST'
+      const isKafka = node.type === 'KAFKA' || node.type === 'ROCKETMQ'
       graphInstance!.addNode({
         id: node.id,
         x: node.x - NODE_WIDTH / 2,
         y: node.y - NODE_HEIGHT / 2,
         width: NODE_WIDTH,
         height: NODE_HEIGHT,
-        // 统一圆角矩形，避免 ellipse 锚点导致箭头出现黑色三角
         shape: 'rect',
         attrs: {
           body: {
-            stroke: isExecutor ? '#b45309' : isKafka ? '#1d4ed8' : isBroker ? '#64748b' : '#1f4f46',
+            stroke: isExecutor ? '#b45309' : isKafka ? '#1d4ed8' : isHost ? '#64748b' : '#1f4f46',
             strokeWidth: isExecutor ? 2 : 1.5,
-            fill: isExecutor ? '#fff7ed' : isBroker ? '#f8fafc' : '#ffffff',
+            fill: isExecutor ? '#fff7ed' : isHost ? '#f8fafc' : '#ffffff',
             rx: isExecutor ? 28 : 10,
             ry: isExecutor ? 28 : 10,
           },
@@ -145,7 +155,7 @@ async function render() {
       })
     })
 
-    props.graph.edges.forEach((edge) => {
+    expandDisplayEdges(g).forEach((edge) => {
       const stroke = edgeStroke(edge)
       graphInstance!.addEdge({
         id: edge.id,
@@ -155,7 +165,7 @@ async function render() {
           {
             attrs: {
               label: {
-                text: purposeLabel(edge.purpose),
+                text: edge.label,
                 fill: '#0f172a',
                 fontSize: 11,
                 fontFamily: 'IBM Plex Sans, sans-serif',
@@ -178,7 +188,6 @@ async function render() {
             stroke,
             strokeWidth: edge.primary ? 2.5 : 1.5,
             strokeDasharray: edge.primary ? undefined : '6 4',
-            // 必须 none，否则折线区域会被填成黑色三角/多边形
             fill: 'none',
             targetMarker: {
               name: 'block',
@@ -191,23 +200,22 @@ async function render() {
             },
           },
         },
-        router: {
-          name: 'orth',
-          args: { padding: 12 },
-        },
-        connector: {
-          name: 'rounded',
-          args: { radius: 8 },
-        },
-        data: edge,
+        router: { name: 'orth', args: { padding: 12 } },
+        connector: { name: 'rounded', args: { radius: 8 } },
+        data: edge.flowEdge,
         zIndex: 1,
       })
     })
 
-    visibleRelations(props.graph.relations).forEach((rel) => {
+    visibleRelations(g.relations, mode.value).forEach((rel) => {
       const isRunsOn = rel.type === 'RUNS_ON'
-      const isVia = rel.type === 'VIA_EXECUTOR'
-      const stroke = isRunsOn ? '#c2410c' : isVia ? '#a8a29e' : '#94a3b8'
+      const stroke = isRunsOn
+        ? '#c2410c'
+        : rel.type === 'BROKER_OF'
+          ? '#64748b'
+          : rel.type === 'CONTAINS'
+            ? '#1d4ed8'
+            : '#94a3b8'
       graphInstance!.addEdge({
         id: rel.id,
         source: rel.source,
@@ -238,7 +246,7 @@ async function render() {
           line: {
             stroke,
             strokeWidth: isRunsOn ? 1.8 : 1.2,
-            strokeDasharray: isVia ? '2 4' : '4 4',
+            strokeDasharray: '4 4',
             fill: 'none',
             targetMarker: {
               name: 'block',
@@ -250,14 +258,8 @@ async function render() {
             },
           },
         },
-        router: {
-          name: 'orth',
-          args: { padding: 10 },
-        },
-        connector: {
-          name: 'rounded',
-          args: { radius: 6 },
-        },
+        router: { name: 'orth', args: { padding: 10 } },
+        connector: { name: 'rounded', args: { radius: 6 } },
         data: { kind: 'relation', ...rel },
         zIndex: 0,
       })
@@ -303,7 +305,7 @@ function exportPng() {
 defineExpose({ zoomToFit, zoomIn, zoomOut, exportPng, render })
 
 watch(
-  () => props.graph,
+  () => [props.graph, props.layoutMode] as const,
   () => {
     void render()
   },
