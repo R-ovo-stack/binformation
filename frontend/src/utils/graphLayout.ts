@@ -608,6 +608,9 @@ export function methodLabel(method: string): string {
     NOTIFY_THEN_PULL: '通知+拉取',
     NOTIFY_THEN_SHARED_READ: '通知+共享读取',
     SCRIPT_PULL: '脚本拉取',
+    STREAM_JOIN: '拼接加工',
+    SFTP_PUSH: 'SFTP推送',
+    DIR_WATCH_PUSH: '目录监听推送',
     OTHER: '其他',
   }
   return map[method] ?? method
