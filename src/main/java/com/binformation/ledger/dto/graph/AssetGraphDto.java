@@ -14,6 +14,7 @@ public record AssetGraphDto(
         List<GraphGroupDto> groups,
         List<GraphNodeDto> nodes,
         List<GraphEdgeDto> edges,
+        List<GraphRelationDto> relations,
         List<GraphDerivationDto> derivations
 ) {
 }

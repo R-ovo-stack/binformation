@@ -66,10 +66,16 @@ async function render() {
       graphInstance.use(new Export())
 
       graphInstance.on('edge:click', ({ edge }) => {
-        const data = (edge.getData() as GraphEdge | undefined)
+        const data = edge.getData() as { kind?: string } | GraphEdge | undefined
+        if (data && 'kind' in data && data.kind === 'relation') {
+          emit('selectEdge', null)
+          return
+        }
+        const flow =
+          (data as GraphEdge | undefined)
           ?? edgeMap.value.get(String(edge.id))
           ?? null
-        emit('selectEdge', data)
+        emit('selectEdge', flow)
       })
       graphInstance.on('blank:click', () => emit('selectEdge', null))
       graphInstance.on('node:click', () => emit('selectEdge', null))
@@ -79,6 +85,8 @@ async function render() {
     graphInstance.clearCells()
 
     positioned.forEach((node) => {
+      const isBroker = node.type === 'HOST'
+      const isKafka = node.type === 'KAFKA'
       graphInstance!.addNode({
         id: node.id,
         x: node.x - NODE_WIDTH / 2,
@@ -87,9 +95,9 @@ async function render() {
         height: NODE_HEIGHT,
         attrs: {
           body: {
-            stroke: '#1f4f46',
+            stroke: isKafka ? '#1d4ed8' : isBroker ? '#64748b' : '#1f4f46',
             strokeWidth: 1.5,
-            fill: '#ffffff',
+            fill: isBroker ? '#f8fafc' : '#ffffff',
             rx: 10,
             ry: 10,
           },
@@ -164,6 +172,50 @@ async function render() {
         },
         data: edge,
         zIndex: 1,
+      })
+    })
+
+    ;(props.graph.relations ?? []).forEach((rel) => {
+      graphInstance!.addEdge({
+        id: rel.id,
+        source: rel.source,
+        target: rel.target,
+        labels: [
+          {
+            attrs: {
+              label: {
+                text: rel.label || rel.type,
+                fill: '#64748b',
+                fontSize: 10,
+                fontFamily: 'IBM Plex Sans, sans-serif',
+                pointerEvents: 'none',
+              },
+              body: {
+                fill: '#f8fafc',
+                stroke: '#cbd5e1',
+                strokeWidth: 1,
+                rx: 3,
+                ry: 3,
+                pointerEvents: 'none',
+              },
+            },
+            position: 0.5,
+          },
+        ],
+        attrs: {
+          line: {
+            stroke: '#94a3b8',
+            strokeWidth: 1.2,
+            strokeDasharray: '4 4',
+            targetMarker: {
+              name: 'classic',
+              width: 8,
+              height: 6,
+            },
+          },
+        },
+        data: { kind: 'relation', ...rel },
+        zIndex: 0,
       })
     })
 

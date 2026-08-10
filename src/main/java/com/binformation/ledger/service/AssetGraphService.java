@@ -8,6 +8,7 @@ import com.binformation.ledger.dto.graph.GraphEdgeDto;
 import com.binformation.ledger.dto.graph.GraphGroupDto;
 import com.binformation.ledger.dto.graph.GraphNodeDto;
 import com.binformation.ledger.dto.graph.GraphPathDto;
+import com.binformation.ledger.dto.graph.GraphRelationDto;
 import com.binformation.ledger.dto.graph.GraphStepDto;
 import com.binformation.ledger.entity.DataAsset;
 import com.binformation.ledger.entity.Derivation;
@@ -38,6 +39,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -111,6 +113,8 @@ public class AssetGraphService {
             }
         }
 
+        List<GraphRelationDto> relations = enrichKafkaTopology(endpointIds, allEndpoints);
+
         Map<Long, FlowLayout> layoutByEndpoint = flowLayoutMapper.selectList(
                         new LambdaQueryWrapper<FlowLayout>().eq(FlowLayout::getAssetId, assetId))
                 .stream()
@@ -132,8 +136,93 @@ public class AssetGraphService {
                 groups,
                 nodes,
                 edges,
+                relations,
                 derivations
         );
+    }
+
+    /**
+     * 补齐 Kafka 拓扑：主题所属 Kafka 集群，以及同系统下 role=kafka-broker 的主机节点。
+     */
+    private List<GraphRelationDto> enrichKafkaTopology(
+            Set<Long> endpointIds,
+            Map<Long, Endpoint> allEndpoints) {
+        List<GraphRelationDto> relations = new ArrayList<>();
+        Set<Long> seedIds = new HashSet<>(endpointIds);
+
+        for (Long id : seedIds) {
+            Endpoint endpoint = allEndpoints.get(id);
+            if (endpoint == null) {
+                continue;
+            }
+            if ("KAFKA_TOPIC".equals(endpoint.getType()) && endpoint.getParentId() != null) {
+                Endpoint kafka = allEndpoints.get(endpoint.getParentId());
+                if (kafka != null && "KAFKA".equals(kafka.getType())) {
+                    endpointIds.add(kafka.getId());
+                    relations.add(new GraphRelationDto(
+                            "rel-contains-" + kafka.getId() + "-" + endpoint.getId(),
+                            EndpointSupport.nodeId(kafka.getId()),
+                            EndpointSupport.nodeId(endpoint.getId()),
+                            "CONTAINS",
+                            "包含主题"
+                    ));
+                }
+            }
+        }
+
+        Set<Long> kafkaIds = endpointIds.stream()
+                .map(allEndpoints::get)
+                .filter(Objects::nonNull)
+                .filter(ep -> "KAFKA".equals(ep.getType()))
+                .map(Endpoint::getId)
+                .collect(Collectors.toCollection(HashSet::new));
+
+        // 也覆盖“仅有主题、刚补入 Kafka”的情况
+        for (Long id : new HashSet<>(endpointIds)) {
+            Endpoint ep = allEndpoints.get(id);
+            if (ep != null && "KAFKA".equals(ep.getType())) {
+                kafkaIds.add(ep.getId());
+            }
+        }
+
+        for (Long kafkaId : kafkaIds) {
+            Endpoint kafka = allEndpoints.get(kafkaId);
+            if (kafka == null || kafka.getParentId() == null) {
+                continue;
+            }
+            Long systemId = kafka.getParentId();
+            for (Endpoint candidate : allEndpoints.values()) {
+                if (!"HOST".equals(candidate.getType())) {
+                    continue;
+                }
+                if (!systemId.equals(candidate.getParentId())) {
+                    continue;
+                }
+                if (!isKafkaBroker(candidate)) {
+                    continue;
+                }
+                endpointIds.add(candidate.getId());
+                relations.add(new GraphRelationDto(
+                        "rel-broker-" + kafkaId + "-" + candidate.getId(),
+                        EndpointSupport.nodeId(kafkaId),
+                        EndpointSupport.nodeId(candidate.getId()),
+                        "BROKER_OF",
+                        "Kafka节点"
+                ));
+            }
+        }
+
+        relations.sort(Comparator.comparing(GraphRelationDto::id));
+        return relations;
+    }
+
+    private boolean isKafkaBroker(Endpoint host) {
+        String attrs = host.getAttrs();
+        if (attrs != null && attrs.contains("kafka-broker")) {
+            return true;
+        }
+        String remark = host.getRemark();
+        return remark != null && remark.contains("Kafka节点");
     }
 
     private Map<Long, List<FlowPath>> loadPathsByFlow(List<Long> flowIds) {

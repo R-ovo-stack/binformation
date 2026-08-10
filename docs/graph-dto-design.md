@@ -114,6 +114,19 @@ GET /api/assets/{assetId}/graph?includeAuxiliary=false
 
 ---
 
+### relations（拓扑关系，非业务流向）
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| id | string | 关系 ID |
+| source / target | string | 节点 ID |
+| type | string | `CONTAINS`（Kafka→主题）/ `BROKER_OF`（Kafka→Broker主机） |
+| label | string | 展示文案 |
+
+成图时自动补齐：主题所属 Kafka 集群，以及同系统下 `role=kafka-broker` 的主机节点。
+
+---
+
 ## 四、ID 约定
 
 | 对象 | ID 格式 | 示例 |

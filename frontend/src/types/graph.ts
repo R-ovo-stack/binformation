@@ -74,6 +74,14 @@ export interface GraphDerivation {
   hostLabel?: string | null
 }
 
+export interface GraphRelation {
+  id: string
+  source: string
+  target: string
+  type: string
+  label?: string
+}
+
 export interface AssetGraph {
   assetId: number
   assetName: string
@@ -82,5 +90,6 @@ export interface AssetGraph {
   groups: GraphGroup[]
   nodes: GraphNode[]
   edges: GraphEdge[]
+  relations?: GraphRelation[]
   derivations: GraphDerivation[]
 }

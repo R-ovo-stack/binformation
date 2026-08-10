@@ -35,11 +35,18 @@ export async function layoutGraph(graph: AssetGraph): Promise<PositionedNode[]> 
 
   await layout.execute({
     nodes: graph.nodes.map((node) => ({ id: node.id })),
-    edges: graph.edges.map((edge) => ({
-      id: edge.id,
-      source: edge.source,
-      target: edge.target,
-    })),
+    edges: [
+      ...graph.edges.map((edge) => ({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+      })),
+      ...(graph.relations ?? []).map((rel) => ({
+        id: rel.id,
+        source: rel.source,
+        target: rel.target,
+      })),
+    ],
   })
 
   const positioned: PositionedNode[] = []
