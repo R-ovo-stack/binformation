@@ -24,6 +24,10 @@ function openGraph(row: DataAsset) {
   void router.push({ name: 'asset-graph', params: { id: String(row.id) } })
 }
 
+function openFlows(row: DataAsset) {
+  void router.push({ name: 'asset-flows', params: { id: String(row.id) } })
+}
+
 onMounted(load)
 </script>
 
@@ -33,7 +37,7 @@ onMounted(load)
       <div>
         <p class="brand">数据中心台账</p>
         <h1>数据资产</h1>
-        <p class="sub">选择资产，一键生成流向图。</p>
+        <p class="sub">选择资产，维护流向或一键生成流向图。</p>
       </div>
       <el-button type="primary" :loading="loading" @click="load">刷新</el-button>
     </header>
@@ -51,8 +55,9 @@ onMounted(load)
       <el-table-column prop="dataType" label="类型" width="120" />
       <el-table-column prop="status" label="状态" width="100" />
       <el-table-column prop="owner" label="责任人" width="120" />
-      <el-table-column label="操作" width="120" fixed="right">
+      <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
+          <el-button link type="primary" @click.stop="openFlows(row)">管理流向</el-button>
           <el-button link type="primary" @click.stop="openGraph(row)">一键成图</el-button>
         </template>
       </el-table-column>

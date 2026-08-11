@@ -1,16 +1,40 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import type { GraphEdge } from '@/types/graph'
 import { methodLabel, purposeLabel } from '@/utils/graphLayout'
 
-defineProps<{
+const props = defineProps<{
   edge: GraphEdge | null
+  assetId?: number | null
 }>()
+
+const router = useRouter()
+
+const canEdit = computed(
+  () =>
+    Boolean(props.edge?.flowId) &&
+    !props.edge?.upstream &&
+    props.assetId != null &&
+    Number.isFinite(props.assetId),
+)
+
+function editFlow() {
+  if (!canEdit.value || !props.edge?.flowId || props.assetId == null) return
+  void router.push({
+    name: 'flow-edit',
+    params: { id: String(props.assetId), flowId: String(props.edge.flowId) },
+  })
+}
 </script>
 
 <template>
   <aside class="panel">
     <template v-if="edge">
-      <h3>流向详情</h3>
+      <div class="head">
+        <h3>流向详情</h3>
+        <el-button v-if="canEdit" link type="primary" @click="editFlow">编辑流向</el-button>
+      </div>
       <dl>
         <div>
           <dt>用途</dt>
@@ -75,9 +99,17 @@ defineProps<{
 }
 
 h3 {
-  margin: 0 0 12px;
+  margin: 0;
   font-size: 16px;
   color: #0f172a;
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
 }
 
 h4 {

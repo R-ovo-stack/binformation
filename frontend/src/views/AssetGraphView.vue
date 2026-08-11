@@ -24,6 +24,10 @@ const canvasRef = ref<InstanceType<typeof FlowGraphCanvas> | null>(null)
 const assetId = computed(() => Number(props.id))
 const showUpstreamToggle = computed(() => Boolean(graph.value?.hasUpstream))
 
+function openFlows() {
+  void router.push({ name: 'asset-flows', params: { id: props.id } })
+}
+
 async function loadGraph() {
   if (!Number.isFinite(assetId.value)) {
     ElMessage.error('无效的资产 ID')
@@ -116,6 +120,7 @@ onMounted(() => {
           <el-radio-button label="compact">简洁</el-radio-button>
           <el-radio-button label="full">完整</el-radio-button>
         </el-radio-group>
+        <el-button @click="openFlows">管理流向</el-button>
         <el-button type="primary" :loading="loading" @click="regenerate">一键成图</el-button>
         <el-button @click="zoomOut">缩小</el-button>
         <el-button @click="zoomIn">放大</el-button>
@@ -137,7 +142,7 @@ onMounted(() => {
         :layout-mode="layoutMode"
         @select-edge="onSelectEdge"
       />
-      <EdgeDetailPanel class="side" :edge="selectedEdge" />
+      <EdgeDetailPanel class="side" :edge="selectedEdge" :asset-id="assetId" />
     </div>
 
     <section v-if="graph?.derivations?.length" class="derivations">
