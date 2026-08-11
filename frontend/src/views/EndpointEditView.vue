@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import {
   createEndpoint,
@@ -19,6 +19,7 @@ import {
 } from '@/types/endpoint'
 
 const props = defineProps<{ id?: string }>()
+const route = useRoute()
 const router = useRouter()
 const loading = ref(false)
 const saving = ref(false)
@@ -32,6 +33,12 @@ const parentCandidates = ref<Array<{ id: number; label: string; type: string }>>
 const isEdit = computed(() => Boolean(props.id && props.id !== 'new'))
 const pageTitle = computed(() => (isEdit.value ? '编辑落点' : '新建落点'))
 const isSecurityZone = computed(() => form.type === 'SECURITY_ZONE')
+
+const parentHint = computed(() => {
+  if (!form.parentId) return ''
+  const p = parentCandidates.value.find((c) => c.id === form.parentId)
+  return p?.label ?? `父落点 #${form.parentId}`
+})
 
 const rules: FormRules = {
   type: [{ required: true, message: '请选择类型', trigger: 'change' }],
@@ -89,6 +96,17 @@ async function load() {
       refreshParentCandidates(await listEndpoints())
     } else {
       Object.assign(form, emptyEndpointForm())
+      const qParent = route.query.parentId
+      const qChild = route.query.childType
+      if (typeof qChild === 'string' && qChild) {
+        form.type = qChild
+        if (qChild === 'DIRECTORY' && !form.attrs) {
+          form.attrs = '{"dirPath":""}'
+        }
+      }
+      if (typeof qParent === 'string' && qParent && Number.isFinite(Number(qParent))) {
+        form.parentId = Number(qParent)
+      }
       refreshParentCandidates(await listEndpoints())
     }
   } catch (e) {
@@ -119,9 +137,9 @@ async function save() {
       await updateEndpoint(Number(props.id), payload)
       ElMessage.success('已保存')
     } else {
-      const created = await createEndpoint(payload)
+      await createEndpoint(payload)
       ElMessage.success('已创建')
-      void router.replace({ name: 'endpoint-edit', params: { id: String(created.id) } })
+      void router.replace({ name: 'endpoints' })
     }
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败')
@@ -177,6 +195,7 @@ watch(() => props.id, load)
         <el-select v-model="form.parentId" filterable placeholder="选择父落点" style="width: 100%">
           <el-option v-for="p in parentCandidates" :key="p.id" :label="p.label" :value="p.id" />
         </el-select>
+        <p v-if="parentHint" class="hint">当前父级：{{ parentHint }}</p>
       </el-form-item>
       <el-form-item label="名称" prop="name">
         <el-input v-model="form.name" placeholder="显示名称，如 topic-A 或 /data/in/" />
@@ -238,5 +257,11 @@ h1 {
   border: 1px solid #d5e0db;
   border-radius: 12px;
   padding: 20px;
+}
+
+.hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #64748b;
 }
 </style>
