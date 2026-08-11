@@ -1,23 +1,37 @@
 package com.binformation.ledger.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.binformation.ledger.dto.asset.DataAssetSaveRequest;
 import com.binformation.ledger.entity.DataAsset;
+import com.binformation.ledger.entity.Flow;
+import com.binformation.ledger.exception.BadRequestException;
 import com.binformation.ledger.exception.ResourceNotFoundException;
 import com.binformation.ledger.mapper.DataAssetMapper;
+import com.binformation.ledger.mapper.FlowMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class DataAssetService {
 
-    private final DataAssetMapper dataAssetMapper;
+    private static final Set<String> DATA_TYPES = Set.of("FILE", "KAFKA_MESSAGE");
+    private static final Set<String> STATUSES = Set.of("DRAFT", "ACTIVE", "INACTIVE", "DEPRECATED");
 
-    public DataAssetService(DataAssetMapper dataAssetMapper) {
+    private final DataAssetMapper dataAssetMapper;
+    private final FlowMapper flowMapper;
+
+    public DataAssetService(DataAssetMapper dataAssetMapper, FlowMapper flowMapper) {
         this.dataAssetMapper = dataAssetMapper;
+        this.flowMapper = flowMapper;
     }
 
     public List<DataAsset> listAll() {
-        return dataAssetMapper.selectList(null);
+        return dataAssetMapper.selectList(
+                new LambdaQueryWrapper<DataAsset>().orderByAsc(DataAsset::getId));
     }
 
     public DataAsset getById(Long id) {
@@ -26,5 +40,66 @@ public class DataAssetService {
             throw new ResourceNotFoundException("数据资产不存在: " + id);
         }
         return asset;
+    }
+
+    @Transactional
+    public DataAsset create(DataAssetSaveRequest request) {
+        validate(request);
+        ensureCodeUnique(request.code().trim(), null);
+        LocalDateTime now = LocalDateTime.now();
+        DataAsset asset = new DataAsset();
+        apply(asset, request);
+        asset.setCreatedAt(now);
+        asset.setUpdatedAt(now);
+        dataAssetMapper.insert(asset);
+        return asset;
+    }
+
+    @Transactional
+    public DataAsset update(Long id, DataAssetSaveRequest request) {
+        DataAsset asset = getById(id);
+        validate(request);
+        ensureCodeUnique(request.code().trim(), id);
+        apply(asset, request);
+        asset.setUpdatedAt(LocalDateTime.now());
+        dataAssetMapper.updateById(asset);
+        return asset;
+    }
+
+    @Transactional
+    public void delete(Long id) {
+        getById(id);
+        Long flowCount = flowMapper.selectCount(
+                new LambdaQueryWrapper<Flow>().eq(Flow::getAssetId, id));
+        if (flowCount != null && flowCount > 0) {
+            throw new BadRequestException("该资产下仍有 " + flowCount + " 条流向，请先删除或迁移流向");
+        }
+        dataAssetMapper.deleteById(id);
+    }
+
+    private void validate(DataAssetSaveRequest request) {
+        if (!DATA_TYPES.contains(request.dataType().trim().toUpperCase())) {
+            throw new BadRequestException("无效的数据类型: " + request.dataType());
+        }
+        if (!STATUSES.contains(request.status().trim().toUpperCase())) {
+            throw new BadRequestException("无效的状态: " + request.status());
+        }
+    }
+
+    private void apply(DataAsset asset, DataAssetSaveRequest request) {
+        asset.setName(request.name().trim());
+        asset.setCode(request.code().trim());
+        asset.setDataType(request.dataType().trim().toUpperCase());
+        asset.setStatus(request.status().trim().toUpperCase());
+        asset.setOwner(request.owner());
+        asset.setRemark(request.remark());
+    }
+
+    private void ensureCodeUnique(String code, Long excludeId) {
+        DataAsset existing = dataAssetMapper.selectOne(
+                new LambdaQueryWrapper<DataAsset>().eq(DataAsset::getCode, code));
+        if (existing != null && (excludeId == null || !existing.getId().equals(excludeId))) {
+            throw new BadRequestException("资产编码已存在: " + code);
+        }
     }
 }

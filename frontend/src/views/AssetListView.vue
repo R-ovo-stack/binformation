@@ -28,6 +28,18 @@ function openFlows(row: DataAsset) {
   void router.push({ name: 'asset-flows', params: { id: String(row.id) } })
 }
 
+function openEdit(row: DataAsset) {
+  void router.push({ name: 'asset-edit', params: { id: String(row.id) } })
+}
+
+function openCreate() {
+  void router.push({ name: 'asset-create' })
+}
+
+function openEndpoints() {
+  void router.push({ name: 'endpoints' })
+}
+
 onMounted(load)
 </script>
 
@@ -37,9 +49,13 @@ onMounted(load)
       <div>
         <p class="brand">数据中心台账</p>
         <h1>数据资产</h1>
-        <p class="sub">选择资产，维护流向或一键生成流向图。</p>
+        <p class="sub">维护数据资产、落点与流向，或一键生成流向图。</p>
       </div>
-      <el-button type="primary" :loading="loading" @click="load">刷新</el-button>
+      <div class="hero-actions">
+        <el-button @click="openEndpoints">落点管理</el-button>
+        <el-button type="primary" @click="openCreate">新建资产</el-button>
+        <el-button :loading="loading" @click="load">刷新</el-button>
+      </div>
     </header>
 
     <el-table
@@ -55,8 +71,9 @@ onMounted(load)
       <el-table-column prop="dataType" label="类型" width="120" />
       <el-table-column prop="status" label="状态" width="100" />
       <el-table-column prop="owner" label="责任人" width="120" />
-      <el-table-column label="操作" width="200" fixed="right">
+      <el-table-column label="操作" width="260" fixed="right">
         <template #default="{ row }">
+          <el-button link type="primary" @click.stop="openEdit(row)">编辑</el-button>
           <el-button link type="primary" @click.stop="openFlows(row)">管理流向</el-button>
           <el-button link type="primary" @click.stop="openGraph(row)">一键成图</el-button>
         </template>
@@ -78,6 +95,13 @@ onMounted(load)
   align-items: flex-end;
   gap: 16px;
   margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .brand {
