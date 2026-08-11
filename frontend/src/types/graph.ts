@@ -47,7 +47,7 @@ export interface GraphPath {
 
 export interface GraphEdge {
   id: string
-  flowId: number
+  flowId?: number | null
   source: string
   target: string
   purpose: string
@@ -55,6 +55,10 @@ export interface GraphEdge {
   status: string
   remark?: string | null
   paths: GraphPath[]
+  /** 来自派生输入资产的前置流程或派生桥接边 */
+  upstream?: boolean
+  fromAssetId?: number | null
+  fromAssetName?: string | null
 }
 
 export interface GraphDerivationInput {
@@ -94,4 +98,6 @@ export interface AssetGraph {
   edges: GraphEdge[]
   relations?: GraphRelation[]
   derivations: GraphDerivation[]
+  /** 当前资产是否为派生输出，可切换展示前置资产流程 */
+  hasUpstream?: boolean
 }

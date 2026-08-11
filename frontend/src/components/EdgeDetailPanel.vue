@@ -20,6 +20,14 @@ defineProps<{
           <dt>主流向</dt>
           <dd>{{ edge.primary ? '是' : '否' }}</dd>
         </div>
+        <div v-if="edge.upstream">
+          <dt>前置流程</dt>
+          <dd>是</dd>
+        </div>
+        <div v-if="edge.fromAssetName">
+          <dt>所属资产</dt>
+          <dd>{{ edge.fromAssetName }}</dd>
+        </div>
         <div>
           <dt>状态</dt>
           <dd>{{ edge.status }}</dd>

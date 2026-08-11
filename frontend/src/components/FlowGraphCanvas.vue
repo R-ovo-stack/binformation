@@ -304,8 +304,8 @@ async function render() {
         attrs: {
           line: {
             stroke,
-            strokeWidth: edge.primary ? 2.5 : 1.5,
-            strokeDasharray: edge.primary ? undefined : '6 4',
+            strokeWidth: edge.primary || edge.upstream ? 2.5 : 1.5,
+            strokeDasharray: edge.upstream ? '5 3' : edge.primary ? undefined : '6 4',
             fill: 'none',
             targetMarker: {
               name: 'block',

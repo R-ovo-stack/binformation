@@ -15,12 +15,14 @@ const props = defineProps<{
 const router = useRouter()
 const loading = ref(false)
 const includeAuxiliary = ref(false)
+const includeUpstream = ref(false)
 const layoutMode = ref<LayoutMode>('compact')
 const graph = ref<AssetGraph | null>(null)
 const selectedEdge = ref<GraphEdge | null>(null)
 const canvasRef = ref<InstanceType<typeof FlowGraphCanvas> | null>(null)
 
 const assetId = computed(() => Number(props.id))
+const showUpstreamToggle = computed(() => Boolean(graph.value?.hasUpstream))
 
 async function loadGraph() {
   if (!Number.isFinite(assetId.value)) {
@@ -30,7 +32,14 @@ async function loadGraph() {
   loading.value = true
   selectedEdge.value = null
   try {
-    graph.value = await getAssetGraph(assetId.value, includeAuxiliary.value)
+    graph.value = await getAssetGraph(
+      assetId.value,
+      includeAuxiliary.value,
+      includeUpstream.value,
+    )
+    if (!graph.value?.hasUpstream) {
+      includeUpstream.value = false
+    }
   } catch (e) {
     graph.value = null
     ElMessage.error(e instanceof Error ? e.message : '加载流向图失败')
@@ -66,6 +75,7 @@ function exportPng() {
 watch(
   () => props.id,
   () => {
+    includeUpstream.value = false
     void loadGraph()
   },
 )
@@ -94,6 +104,14 @@ onMounted(() => {
           inactive-text="主流向"
           @change="regenerate"
         />
+        <el-switch
+          v-if="showUpstreamToggle"
+          v-model="includeUpstream"
+          inline-prompt
+          active-text="含前置"
+          inactive-text="仅本资产"
+          @change="regenerate"
+        />
         <el-radio-group v-model="layoutMode" size="small">
           <el-radio-button label="compact">简洁</el-radio-button>
           <el-radio-button label="full">完整</el-radio-button>
@@ -106,7 +124,9 @@ onMounted(() => {
       </div>
     </header>
 
-    <p class="mobile-tip">完整模式：Kafka 集群卡片内主题/节点不可单独拖动，只能拖整卡。简洁=主链路。</p>
+    <p class="mobile-tip">
+      完整模式：Kafka 集群卡片内主题/节点不可单独拖动，只能拖整卡。简洁=主链路。派生输出资产可开「含前置」查看输入资产流程。
+    </p>
 
     <div class="workspace">
       <FlowGraphCanvas

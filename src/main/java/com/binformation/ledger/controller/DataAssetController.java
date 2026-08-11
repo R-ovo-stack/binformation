@@ -38,11 +38,13 @@ public class DataAssetController {
      * 一键成图：返回资产视角的 GraphDTO，供前端 X6 自动布局渲染。
      *
      * @param includeAuxiliary 是否包含辅助流向（purpose=AUX 或 isPrimary=false）
+     * @param includeUpstream  是否展开派生输入资产的前置流程（仅对派生输出资产有意义）
      */
     @GetMapping("/assets/{id}/graph")
     public AssetGraphDto getAssetGraph(
             @PathVariable Long id,
-            @RequestParam(defaultValue = "false") boolean includeAuxiliary) {
-        return assetGraphService.buildGraph(id, includeAuxiliary);
+            @RequestParam(defaultValue = "false") boolean includeAuxiliary,
+            @RequestParam(defaultValue = "false") boolean includeUpstream) {
+        return assetGraphService.buildGraph(id, includeAuxiliary, includeUpstream);
     }
 }

@@ -14,6 +14,11 @@ public record GraphEdgeDto(
         boolean primary,
         String status,
         String remark,
-        List<GraphPathDto> paths
+        List<GraphPathDto> paths,
+        /** 是否来自派生输入资产的前置流程（或派生桥接边） */
+        boolean upstream,
+        /** 该边所属资产（当前资产或前置输入资产） */
+        Long fromAssetId,
+        String fromAssetName
 ) {
 }

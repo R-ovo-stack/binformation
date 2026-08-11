@@ -14,9 +14,10 @@ export async function getAsset(id: number): Promise<DataAsset> {
 export async function getAssetGraph(
   id: number,
   includeAuxiliary = false,
+  includeUpstream = false,
 ): Promise<AssetGraph> {
   const { data } = await http.get<AssetGraph>(`/api/assets/${id}/graph`, {
-    params: { includeAuxiliary },
+    params: { includeAuxiliary, includeUpstream },
   })
   return data
 }

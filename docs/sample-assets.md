@@ -16,7 +16,7 @@
 | 400 | 变化遥信数据 | `ASSET_GRID_YX` | KAFKA_MESSAGE | 二区A→主题A；跨区 cloud201/202发送 + idc306/307接收 → 三区主题A |
 | 401 | 变化遥测数据 | `ASSET_GRID_YC` | KAFKA_MESSAGE | 二区A→主题B；跨区 cloud201/202发送 + idc306/307接收 → 三区主题B |
 | 402 | 全量开关台账 | `ASSET_GRID_SWITCH_LEDGER` | KAFKA_MESSAGE | 二区A每2h→主题C；跨区 cloud201/202发送 + idc306/307接收 → 三区主题C |
-| 403 | 拼接数据D | `ASSET_GRID_DATA_D` | FILE | 派生自遥信+遥测+台账；idc305→/data/d/→SFTP idc306→主题F |
+| 403 | 拼接数据D | `ASSET_GRID_DATA_D` | FILE | 派生自遥信+遥测+台账；idc305→/data/d/→SFTP idc306→主题F；成图可开「含前置」叠加 400/401/402 主流向 |
 
 ## 建议体验路径
 

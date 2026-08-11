@@ -7,12 +7,13 @@
 ## 一、API
 
 ```
-GET /api/assets/{assetId}/graph?includeAuxiliary=false
+GET /api/assets/{assetId}/graph?includeAuxiliary=false&includeUpstream=false
 ```
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
 | `includeAuxiliary` | false | 是否包含 `isPrimary=false` 的辅助流向 |
+| `includeUpstream` | false | 是否展开派生输入资产的前置主流向（仅对派生输出资产有意义） |
 
 响应体：`AssetGraphDto`
 
@@ -29,7 +30,8 @@ GET /api/assets/{assetId}/graph?includeAuxiliary=false
   "groups": [],
   "nodes": [],
   "edges": [],
-  "derivations": []
+  "derivations": [],
+  "hasUpstream": false
 }
 ```
 
@@ -70,11 +72,16 @@ GET /api/assets/{assetId}/graph?includeAuxiliary=false
 | flowId | long | 流向主键 |
 | source | string | 源节点 ID |
 | target | string | 目标节点 ID |
-| purpose | string | INGEST / SHARE / SYNC / FORWARD / AUX |
+| purpose | string | INGEST / SHARE / SYNC / FORWARD / AUX / DERIVE |
 | primary | boolean | 是否主流向 |
 | status | string | 状态 |
 | remark | string | 备注 |
 | paths | array | 路径与步骤详情 |
+| upstream | boolean | 是否来自前置输入资产（或派生桥接边） |
+| fromAssetId | long? | 该边所属资产 ID |
+| fromAssetName | string? | 该边所属资产名称 |
+
+顶层 `hasUpstream`：当前资产是否作为某派生的输出；前端据此展示「含前置」开关。
 
 #### paths[]
 

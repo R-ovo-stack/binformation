@@ -15,6 +15,8 @@ public record AssetGraphDto(
         List<GraphNodeDto> nodes,
         List<GraphEdgeDto> edges,
         List<GraphRelationDto> relations,
-        List<GraphDerivationDto> derivations
+        List<GraphDerivationDto> derivations,
+        /** 当前资产是否作为某派生的输出（可展示前置资产流程） */
+        boolean hasUpstream
 ) {
 }

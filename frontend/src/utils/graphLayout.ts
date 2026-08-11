@@ -55,6 +55,7 @@ export interface DisplayEdge {
   target: string
   purpose: string
   primary: boolean
+  upstream?: boolean
   label: string
   flowEdge: GraphEdge
 }
@@ -96,7 +97,8 @@ export function filterGraphForMode(graph: AssetGraph, mode: LayoutMode): AssetGr
   if (mode === 'full') return graph
 
   const keep = new Set<string>()
-  const primaryEdges = graph.edges.filter((e) => e.primary)
+  // 主流向 + 前置/桥接边（upstream）均保留在简洁模式
+  const primaryEdges = graph.edges.filter((e) => e.primary || e.upstream)
 
   primaryEdges.forEach((edge) => {
     keep.add(edge.source)
@@ -152,6 +154,7 @@ export function expandDisplayEdges(graph: AssetGraph): DisplayEdge[] {
           target: edge.target,
           purpose: edge.purpose,
           primary: edge.primary,
+          upstream: Boolean(edge.upstream),
           label: purposeLabel(edge.purpose),
           flowEdge: edge,
         })
@@ -173,6 +176,7 @@ export function expandDisplayEdges(graph: AssetGraph): DisplayEdge[] {
         target: compact[i + 1],
         purpose: edge.purpose,
         primary: edge.primary,
+        upstream: Boolean(edge.upstream),
         label,
         flowEdge: edge,
       })
@@ -596,6 +600,7 @@ export function purposeLabel(purpose: string): string {
     SYNC: '同步',
     FORWARD: '转发',
     AUX: '辅助',
+    DERIVE: '派生拼接',
   }
   return map[purpose] ?? purpose
 }
@@ -638,7 +643,8 @@ export function endpointTypeLabel(type: string): string {
   return map[type] ?? type
 }
 
-export function edgeStroke(edge: Pick<GraphEdge, 'primary' | 'purpose'>): string {
+export function edgeStroke(edge: Pick<GraphEdge, 'primary' | 'purpose' | 'upstream'>): string {
+  if (edge.upstream) return '#0e7490'
   if (!edge.primary) return '#94a3b8'
   switch (edge.purpose) {
     case 'INGEST':
@@ -649,6 +655,8 @@ export function edgeStroke(edge: Pick<GraphEdge, 'primary' | 'purpose'>): string
       return '#1d4ed8'
     case 'FORWARD':
       return '#6d28d9'
+    case 'DERIVE':
+      return '#0e7490'
     default:
       return '#334155'
   }
