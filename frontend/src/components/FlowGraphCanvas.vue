@@ -154,6 +154,7 @@ async function render() {
         markup: [
           { tagName: 'rect', selector: 'body' },
           { tagName: 'rect', selector: 'header' },
+          { tagName: 'rect', selector: 'headerFlat' },
           { tagName: 'text', selector: 'label' },
           { tagName: 'text', selector: 'hint' },
         ],
@@ -165,9 +166,19 @@ async function render() {
             rx: 12,
             ry: 12,
           },
+          // 顶部圆角与 body 一致；下方用 headerFlat 盖住 header 底边圆角，保持标题带平底
           header: {
             refWidth: '100%',
             height: 36,
+            stroke: 'none',
+            fill: '#dbe4ee',
+            rx: 12,
+            ry: 12,
+          },
+          headerFlat: {
+            refWidth: '100%',
+            y: 12,
+            height: 24,
             stroke: 'none',
             fill: '#dbe4ee',
           },
