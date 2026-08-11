@@ -1,6 +1,7 @@
 -- 样例（按资产拆分，对齐既有建模）：
 -- 1) 变化遥信  2) 变化遥测  3) 全量开关台账  4) 拼接数据D（派生自前三者）
--- 二区A → 二区B Kafka(cloud201/202) ABC → 跨区 → 三区B Kafka(idc301/302/303) ABC
+-- 二区A → 二区B Kafka(cloud201/202) ABC
+-- 跨区：二区 cloud201/202 跨区发送端 + 三区 idc306/307 跨区接收端 → 三区B Kafka(idc301/302/303) ABC
 -- idc305 拼接 → /data/d/ → SFTP → idc306:/data/dd → 监听推送主题F
 
 -- ---------------------------------------------------------------------------
@@ -23,14 +24,23 @@ INSERT INTO endpoint (id, type, name, parent_id, zone_id, status, remark) VALUES
     (421, 'KAFKA', 'Kafka-三区', 412, 401, 'ACTIVE', '安全三区B系统Kafka，节点idc301/302/303');
 
 INSERT INTO endpoint (id, type, name, parent_id, zone_id, attrs, status, remark) VALUES
-    (430, 'HOST', 'cloud201', 411, 400, '{"hostname":"cloud201","role":"kafka-broker"}', 'ACTIVE', '二区B Kafka节点'),
-    (431, 'HOST', 'cloud202', 411, 400, '{"hostname":"cloud202","role":"kafka-broker"}', 'ACTIVE', '二区B Kafka节点'),
+    (430, 'HOST', 'cloud201', 411, 400,
+     '{"hostname":"cloud201","role":"kafka-broker,cross-zone-sender"}', 'ACTIVE',
+     '二区B Kafka节点 + 跨区发送端'),
+    (431, 'HOST', 'cloud202', 411, 400,
+     '{"hostname":"cloud202","role":"kafka-broker,cross-zone-sender"}', 'ACTIVE',
+     '二区B Kafka节点 + 跨区发送端'),
     (432, 'HOST', 'idc301', 412, 401, '{"hostname":"idc301","role":"kafka-broker"}', 'ACTIVE', '三区B Kafka节点'),
     (433, 'HOST', 'idc302', 412, 401, '{"hostname":"idc302","role":"kafka-broker"}', 'ACTIVE', '三区B Kafka节点'),
     (434, 'HOST', 'idc303', 412, 401, '{"hostname":"idc303","role":"kafka-broker"}', 'ACTIVE', '三区B Kafka节点'),
     (435, 'HOST', 'idc305', 412, 401, '{"hostname":"idc305","role":"app"}', 'ACTIVE', '拼接程序与SFTP脚本节点'),
-    (436, 'HOST', 'idc306', 412, 401, '{"hostname":"idc306","role":"app"}', 'ACTIVE', '目录监听推送程序节点'),
-    (437, 'HOST', 'a-push-01', 410, 400, '{"hostname":"a-push-01","role":"push"}', 'ACTIVE', 'A系统推送节点');
+    (436, 'HOST', 'idc306', 412, 401,
+     '{"hostname":"idc306","role":"app,cross-zone-receiver"}', 'ACTIVE',
+     '跨区接收端 + 目录监听推送/SFTP落盘节点'),
+    (437, 'HOST', 'a-push-01', 410, 400, '{"hostname":"a-push-01","role":"push"}', 'ACTIVE', 'A系统推送节点'),
+    (438, 'HOST', 'idc307', 412, 401,
+     '{"hostname":"idc307","role":"cross-zone-receiver"}', 'ACTIVE',
+     '三区跨区接收端');
 
 INSERT INTO endpoint (id, type, name, parent_id, zone_id, attrs, status, remark) VALUES
     (440, 'KAFKA_TOPIC', 'A', 420, 400, '{"topicName":"A"}', 'ACTIVE', '二区：变化遥信'),
@@ -49,25 +59,27 @@ INSERT INTO endpoint (id, type, name, parent_id, zone_id, attrs, status, remark)
 INSERT INTO executor (id, name, code, kind, default_host_id, status, remark) VALUES
     (400, 'yx-yc-ledger-push', 'yx-yc-ledger-push', 'PROGRAM', 437, 'ACTIVE',
      'A系统推送变化遥信/遥测及全量开关台账到二区B Kafka'),
-    (401, 'cross-zone-abc-sync', 'cross-zone-abc-sync', 'PROGRAM', 435, 'ACTIVE',
-     '跨区隔离同步 ABC 主题：二区cloud → 三区 idc'),
+    (401, 'cross-zone-sender', 'cross-zone-sender', 'PROGRAM', 430, 'ACTIVE',
+     '跨区发送端，部署于安全二区 cloud201/cloud202'),
     (402, 'abc-stitch-d', 'abc-stitch-d', 'PROGRAM', 435, 'ACTIVE',
      'idc305 消费三区ABC主题，拼接生成数据D到 /data/d/'),
     (403, 'sftp-d-to-dd', 'sftp-d-to-dd', 'SCRIPT', 435, 'ACTIVE',
      'idc305 SFTP脚本，将 /data/d/ 数据D发送到 idc306:/data/dd'),
     (404, 'dd-watch-to-f', 'dd-watch-to-f', 'PROGRAM', 436, 'ACTIVE',
-     'idc306 监听 /data/dd 增量文件，推送到三区 Kafka 主题F');
+     'idc306 监听 /data/dd 增量文件，推送到三区 Kafka 主题F'),
+    (405, 'cross-zone-receiver', 'cross-zone-receiver', 'PROGRAM', 436, 'ACTIVE',
+     '跨区接收端，部署于安全三区 idc306/idc307');
 
 -- ---------------------------------------------------------------------------
 -- 四个数据资产
 -- ---------------------------------------------------------------------------
 INSERT INTO data_asset (id, name, code, data_type, status, remark) VALUES
     (400, '变化遥信数据', 'ASSET_GRID_YX', 'KAFKA_MESSAGE', 'ACTIVE',
-     '二区A推送→二区B Kafka主题A(cloud)→跨区同步→三区B Kafka主题A(idc)'),
+     '二区A→二区B主题A；跨区由cloud201/202发送端+idc306/307接收端同步到三区主题A'),
     (401, '变化遥测数据', 'ASSET_GRID_YC', 'KAFKA_MESSAGE', 'ACTIVE',
-     '二区A推送→二区B Kafka主题B(cloud)→跨区同步→三区B Kafka主题B(idc)'),
+     '二区A→二区B主题B；跨区由cloud201/202发送端+idc306/307接收端同步到三区主题B'),
     (402, '全量开关台账', 'ASSET_GRID_SWITCH_LEDGER', 'KAFKA_MESSAGE', 'ACTIVE',
-     '二区A每2小时推送全量开关台账→主题C，并跨区同步到三区主题C'),
+     '二区A每2h→主题C；跨区由cloud201/202发送端+idc306/307接收端同步到三区主题C'),
     (403, '拼接数据D', 'ASSET_GRID_DATA_D', 'FILE', 'ACTIVE',
      '由遥信+遥测+开关台账经idc305拼接生成；SFTP到idc306后监听推送主题F');
 
@@ -76,45 +88,57 @@ INSERT INTO data_asset (id, name, code, data_type, status, remark) VALUES
 -- ---------------------------------------------------------------------------
 INSERT INTO flow (id, asset_id, source_endpoint_id, target_endpoint_id, purpose, is_primary, status, remark) VALUES
     (400, 400, 410, 440, 'SHARE', TRUE, 'ACTIVE', '变化遥信 → 二区主题A'),
-    (401, 400, 440, 443, 'SYNC', TRUE, 'ACTIVE', '主题A 二区→三区跨区隔离同步');
+    (401, 400, 440, 443, 'SYNC', TRUE, 'ACTIVE', '主题A 二区→三区：发送端cloud + 接收端idc');
 
-INSERT INTO flow_path (id, flow_id, name, enabled, sort_order) VALUES
-    (400, 400, '默认路径', TRUE, 0),
-    (401, 401, '跨区隔离', TRUE, 0);
+INSERT INTO flow_path (id, flow_id, name, enabled, sort_order, remark) VALUES
+    (400, 400, '默认路径', TRUE, 0, NULL),
+    (410, 401, 'cloud201→idc306', TRUE, 0, '跨区路径1：cloud201发送 + idc306接收'),
+    (411, 401, 'cloud202→idc307', TRUE, 1, '跨区路径2：cloud202发送 + idc307接收');
 
 INSERT INTO flow_step (id, path_id, seq, host_id, executor_id, method, remark) VALUES
     (400, 400, 1, 437, 400, 'DIRECT_PUSH', '推送变化遥信到 Kafka-cloud 主题A'),
-    (401, 401, 1, 435, 401, 'CROSS_ZONE_PUSH', '跨区隔离同步主题A');
+    (410, 410, 1, 430, 401, 'CROSS_ZONE_SEND', 'cloud201 跨区发送端发出主题A'),
+    (411, 410, 2, 436, 405, 'CROSS_ZONE_RECV', 'idc306 跨区接收端写入三区主题A'),
+    (412, 411, 1, 431, 401, 'CROSS_ZONE_SEND', 'cloud202 跨区发送端发出主题A'),
+    (413, 411, 2, 438, 405, 'CROSS_ZONE_RECV', 'idc307 跨区接收端写入三区主题A');
 
 -- ---------------------------------------------------------------------------
 -- 资产2：变化遥测
 -- ---------------------------------------------------------------------------
 INSERT INTO flow (id, asset_id, source_endpoint_id, target_endpoint_id, purpose, is_primary, status, remark) VALUES
     (402, 401, 410, 441, 'SHARE', TRUE, 'ACTIVE', '变化遥测 → 二区主题B'),
-    (403, 401, 441, 444, 'SYNC', TRUE, 'ACTIVE', '主题B 二区→三区跨区隔离同步');
+    (403, 401, 441, 444, 'SYNC', TRUE, 'ACTIVE', '主题B 二区→三区：发送端cloud + 接收端idc');
 
-INSERT INTO flow_path (id, flow_id, name, enabled, sort_order) VALUES
-    (402, 402, '默认路径', TRUE, 0),
-    (403, 403, '跨区隔离', TRUE, 0);
+INSERT INTO flow_path (id, flow_id, name, enabled, sort_order, remark) VALUES
+    (402, 402, '默认路径', TRUE, 0, NULL),
+    (412, 403, 'cloud201→idc306', TRUE, 0, '跨区路径1：cloud201发送 + idc306接收'),
+    (413, 403, 'cloud202→idc307', TRUE, 1, '跨区路径2：cloud202发送 + idc307接收');
 
 INSERT INTO flow_step (id, path_id, seq, host_id, executor_id, method, remark) VALUES
     (402, 402, 1, 437, 400, 'DIRECT_PUSH', '推送变化遥测到 Kafka-cloud 主题B'),
-    (403, 403, 1, 435, 401, 'CROSS_ZONE_PUSH', '跨区隔离同步主题B');
+    (414, 412, 1, 430, 401, 'CROSS_ZONE_SEND', 'cloud201 跨区发送端发出主题B'),
+    (415, 412, 2, 436, 405, 'CROSS_ZONE_RECV', 'idc306 跨区接收端写入三区主题B'),
+    (416, 413, 1, 431, 401, 'CROSS_ZONE_SEND', 'cloud202 跨区发送端发出主题B'),
+    (417, 413, 2, 438, 405, 'CROSS_ZONE_RECV', 'idc307 跨区接收端写入三区主题B');
 
 -- ---------------------------------------------------------------------------
 -- 资产3：全量开关台账
 -- ---------------------------------------------------------------------------
 INSERT INTO flow (id, asset_id, source_endpoint_id, target_endpoint_id, purpose, is_primary, status, remark) VALUES
     (404, 402, 410, 442, 'SHARE', TRUE, 'ACTIVE', '全量开关台账(2h) → 二区主题C'),
-    (405, 402, 442, 445, 'SYNC', TRUE, 'ACTIVE', '主题C 二区→三区跨区隔离同步');
+    (405, 402, 442, 445, 'SYNC', TRUE, 'ACTIVE', '主题C 二区→三区：发送端cloud + 接收端idc');
 
-INSERT INTO flow_path (id, flow_id, name, enabled, sort_order) VALUES
-    (404, 404, '默认路径', TRUE, 0),
-    (405, 405, '跨区隔离', TRUE, 0);
+INSERT INTO flow_path (id, flow_id, name, enabled, sort_order, remark) VALUES
+    (404, 404, '默认路径', TRUE, 0, NULL),
+    (414, 405, 'cloud201→idc306', TRUE, 0, '跨区路径1：cloud201发送 + idc306接收'),
+    (415, 405, 'cloud202→idc307', TRUE, 1, '跨区路径2：cloud202发送 + idc307接收');
 
 INSERT INTO flow_step (id, path_id, seq, host_id, executor_id, method, remark) VALUES
     (404, 404, 1, 437, 400, 'DIRECT_PUSH', '每2小时推送全量开关台账到主题C'),
-    (405, 405, 1, 435, 401, 'CROSS_ZONE_PUSH', '跨区隔离同步主题C');
+    (418, 414, 1, 430, 401, 'CROSS_ZONE_SEND', 'cloud201 跨区发送端发出主题C'),
+    (419, 414, 2, 436, 405, 'CROSS_ZONE_RECV', 'idc306 跨区接收端写入三区主题C'),
+    (420, 415, 1, 431, 401, 'CROSS_ZONE_SEND', 'cloud202 跨区发送端发出主题C'),
+    (421, 415, 2, 438, 405, 'CROSS_ZONE_RECV', 'idc307 跨区接收端写入三区主题C');
 
 -- ---------------------------------------------------------------------------
 -- 资产4：拼接数据D = 派生(遥信+遥测+台账) + SFTP + 推送主题F

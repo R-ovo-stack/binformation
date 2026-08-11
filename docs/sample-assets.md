@@ -13,9 +13,9 @@
 | 204 | 规范持仓数据 | `ASSET_NORM_POSITION` | FILE | 多源派生/加工 + 对外共享 |
 | 205 | 应用日志直推 | `ASSET_APP_LOG_DIRECT` | FILE | 目录直推 |
 | 300 | GZ故障文件拉取 | `ASSET_FAULT_GZ_PULL` | FILE | idc301 脚本从 idc302:/data/origin/gz 下载到 idc301:/data/sftp/gz |
-| 400 | 变化遥信数据 | `ASSET_GRID_YX` | KAFKA_MESSAGE | 二区A→二区B主题A(cloud)→跨区→三区主题A(idc)；作拼接D输入 |
-| 401 | 变化遥测数据 | `ASSET_GRID_YC` | KAFKA_MESSAGE | 二区A→二区B主题B(cloud)→跨区→三区主题B(idc)；作拼接D输入 |
-| 402 | 全量开关台账 | `ASSET_GRID_SWITCH_LEDGER` | KAFKA_MESSAGE | 二区A每2h→主题C→跨区三区主题C；作拼接D输入 |
+| 400 | 变化遥信数据 | `ASSET_GRID_YX` | KAFKA_MESSAGE | 二区A→主题A；跨区 cloud201/202发送 + idc306/307接收 → 三区主题A |
+| 401 | 变化遥测数据 | `ASSET_GRID_YC` | KAFKA_MESSAGE | 二区A→主题B；跨区 cloud201/202发送 + idc306/307接收 → 三区主题B |
+| 402 | 全量开关台账 | `ASSET_GRID_SWITCH_LEDGER` | KAFKA_MESSAGE | 二区A每2h→主题C；跨区 cloud201/202发送 + idc306/307接收 → 三区主题C |
 | 403 | 拼接数据D | `ASSET_GRID_DATA_D` | FILE | 派生自遥信+遥测+台账；idc305→/data/d/→SFTP idc306→主题F |
 
 ## 建议体验路径

@@ -604,6 +604,8 @@ export function methodLabel(method: string): string {
   const map: Record<string, string> = {
     DIRECT_PUSH: '直推',
     CROSS_ZONE_PUSH: '跨区隔离推送',
+    CROSS_ZONE_SEND: '跨区发送',
+    CROSS_ZONE_RECV: '跨区接收',
     KAFKA_SUBSCRIBE_FORWARD: '订阅转发',
     NOTIFY_THEN_PULL: '通知+拉取',
     NOTIFY_THEN_SHARED_READ: '通知+共享读取',
