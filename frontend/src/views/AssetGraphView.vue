@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getAssetGraph } from '@/api/asset'
+import { saveAssetLayout } from '@/api/layout'
 import type { AssetGraph, GraphEdge } from '@/types/graph'
 import type { LayoutMode } from '@/utils/graphLayout'
 import FlowGraphCanvas from '@/components/FlowGraphCanvas.vue'
@@ -14,6 +15,7 @@ const props = defineProps<{
 
 const router = useRouter()
 const loading = ref(false)
+const savingLayout = ref(false)
 const includeAuxiliary = ref(false)
 const includeUpstream = ref(false)
 const layoutMode = ref<LayoutMode>('compact')
@@ -76,6 +78,34 @@ function exportPng() {
   canvasRef.value?.exportPng()
 }
 
+async function saveLayout() {
+  const nodes = canvasRef.value?.collectEndpointLayouts() ?? []
+  if (!nodes.length) {
+    ElMessage.warning('当前画布没有可保存的落点位置')
+    return
+  }
+  savingLayout.value = true
+  try {
+    await saveAssetLayout(assetId.value, nodes)
+    ElMessage.success(`已保存 ${nodes.length} 个落点布局`)
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '保存布局失败')
+  } finally {
+    savingLayout.value = false
+  }
+}
+
+function openDerivations() {
+  void router.push({ name: 'asset-derivations', params: { id: props.id } })
+}
+
+function openDerivationEdit(derivationId: number) {
+  void router.push({
+    name: 'derivation-edit',
+    params: { id: props.id, derivationId: String(derivationId) },
+  })
+}
+
 watch(
   () => props.id,
   () => {
@@ -121,6 +151,8 @@ onMounted(() => {
           <el-radio-button label="full">完整</el-radio-button>
         </el-radio-group>
         <el-button @click="openFlows">管理流向</el-button>
+        <el-button @click="openDerivations">管理派生</el-button>
+        <el-button :loading="savingLayout" @click="saveLayout">保存布局</el-button>
         <el-button type="primary" :loading="loading" @click="regenerate">一键成图</el-button>
         <el-button @click="zoomOut">缩小</el-button>
         <el-button @click="zoomIn">放大</el-button>
@@ -157,6 +189,11 @@ onMounted(() => {
         </el-table-column>
         <el-table-column prop="executorName" label="程序/脚本" min-width="120" />
         <el-table-column prop="status" label="状态" width="100" />
+        <el-table-column label="操作" width="80" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="openDerivationEdit(row.derivationId)">编辑</el-button>
+          </template>
+        </el-table-column>
       </el-table>
     </section>
   </div>

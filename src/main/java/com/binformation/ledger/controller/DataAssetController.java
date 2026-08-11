@@ -2,9 +2,11 @@ package com.binformation.ledger.controller;
 
 import com.binformation.ledger.dto.asset.DataAssetSaveRequest;
 import com.binformation.ledger.dto.graph.AssetGraphDto;
+import com.binformation.ledger.dto.layout.LayoutNodeSaveRequest;
 import com.binformation.ledger.entity.DataAsset;
 import com.binformation.ledger.service.AssetGraphService;
 import com.binformation.ledger.service.DataAssetService;
+import com.binformation.ledger.service.FlowLayoutService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -26,10 +28,15 @@ public class DataAssetController {
 
     private final DataAssetService dataAssetService;
     private final AssetGraphService assetGraphService;
+    private final FlowLayoutService flowLayoutService;
 
-    public DataAssetController(DataAssetService dataAssetService, AssetGraphService assetGraphService) {
+    public DataAssetController(
+            DataAssetService dataAssetService,
+            AssetGraphService assetGraphService,
+            FlowLayoutService flowLayoutService) {
         this.dataAssetService = dataAssetService;
         this.assetGraphService = assetGraphService;
+        this.flowLayoutService = flowLayoutService;
     }
 
     @GetMapping("/assets")
@@ -70,5 +77,13 @@ public class DataAssetController {
             @RequestParam(defaultValue = "false") boolean includeAuxiliary,
             @RequestParam(defaultValue = "false") boolean includeUpstream) {
         return assetGraphService.buildGraph(id, includeAuxiliary, includeUpstream);
+    }
+
+    @PutMapping("/assets/{id}/layout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void saveLayout(
+            @PathVariable Long id,
+            @Valid @RequestBody List<LayoutNodeSaveRequest> nodes) {
+        flowLayoutService.saveLayout(id, nodes);
     }
 }

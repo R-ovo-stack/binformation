@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Graph, Export } from '@antv/x6'
-import type { AssetGraph, GraphEdge } from '@/types/graph'
+import type { AssetGraph, GraphEdge, GraphNode } from '@/types/graph'
 import {
   NODE_HEIGHT,
   NODE_WIDTH,
@@ -422,7 +422,26 @@ function exportPng() {
   )
 }
 
-defineExpose({ zoomToFit, zoomIn, zoomOut, exportPng, render })
+function collectEndpointLayouts(): Array<{ endpointId: number; layoutX: number; layoutY: number }> {
+  if (!graphInstance) return []
+  const result: Array<{ endpointId: number; layoutX: number; layoutY: number }> = []
+  for (const cell of graphInstance.getNodes()) {
+    if (cell.getParent()) continue
+    const data = cell.getData() as GraphNode | undefined
+    const endpointId = data?.endpointId
+    if (!endpointId) continue
+    const pos = cell.getPosition()
+    const size = cell.getSize()
+    result.push({
+      endpointId,
+      layoutX: Math.round(pos.x + size.width / 2),
+      layoutY: Math.round(pos.y + size.height / 2),
+    })
+  }
+  return result
+}
+
+defineExpose({ zoomToFit, zoomIn, zoomOut, exportPng, render, collectEndpointLayouts })
 
 watch(
   () => [props.graph, props.layoutMode] as const,

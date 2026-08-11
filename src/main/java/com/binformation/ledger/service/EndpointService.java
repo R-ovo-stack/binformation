@@ -39,18 +39,21 @@ public class EndpointService {
     private final FlowStepMapper flowStepMapper;
     private final ExecutorMapper executorMapper;
     private final DerivationMapper derivationMapper;
+    private final ChangeLogService changeLogService;
 
     public EndpointService(
             EndpointMapper endpointMapper,
             FlowMapper flowMapper,
             FlowStepMapper flowStepMapper,
             ExecutorMapper executorMapper,
-            DerivationMapper derivationMapper) {
+            DerivationMapper derivationMapper,
+            ChangeLogService changeLogService) {
         this.endpointMapper = endpointMapper;
         this.flowMapper = flowMapper;
         this.flowStepMapper = flowStepMapper;
         this.executorMapper = executorMapper;
         this.derivationMapper = derivationMapper;
+        this.changeLogService = changeLogService;
     }
 
     public List<EndpointDetailDto> listAll(String type, Long parentId) {
@@ -96,6 +99,8 @@ public class EndpointService {
         endpoint.setCreatedAt(now);
         endpoint.setUpdatedAt(now);
         insertEndpoint(endpoint);
+        changeLogService.record("ENDPOINT", endpoint.getId(), "CREATE",
+                "新建落点: " + endpoint.getName(), null);
         return getDetail(endpoint.getId());
     }
 
@@ -111,12 +116,14 @@ public class EndpointService {
             throw new BadRequestException("同父级下已存在相同类型与名称的落点");
         }
         refreshZoneForDescendants(endpoint.getId());
+        changeLogService.record("ENDPOINT", id, "UPDATE",
+                "更新落点: " + endpoint.getName(), null);
         return getDetail(id);
     }
 
     @Transactional
     public void delete(Long id) {
-        requireById(id);
+        Endpoint endpoint = requireById(id);
         Long childCount = endpointMapper.selectCount(
                 new LambdaQueryWrapper<Endpoint>().eq(Endpoint::getParentId, id));
         if (childCount != null && childCount > 0) {
@@ -124,6 +131,8 @@ public class EndpointService {
         }
         assertNotReferenced(id);
         endpointMapper.deleteById(id);
+        changeLogService.record("ENDPOINT", id, "DELETE",
+                "删除落点: " + endpoint.getName(), null);
     }
 
     public Endpoint requireById(Long id) {

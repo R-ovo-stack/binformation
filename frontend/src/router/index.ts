@@ -6,6 +6,10 @@ import AssetFlowListView from '@/views/AssetFlowListView.vue'
 import FlowEditView from '@/views/FlowEditView.vue'
 import EndpointListView from '@/views/EndpointListView.vue'
 import EndpointEditView from '@/views/EndpointEditView.vue'
+import ExecutorListView from '@/views/ExecutorListView.vue'
+import ExecutorEditView from '@/views/ExecutorEditView.vue'
+import DerivationListView from '@/views/DerivationListView.vue'
+import DerivationEditView from '@/views/DerivationEditView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -30,6 +34,27 @@ const router = createRouter({
     { path: '/endpoints', name: 'endpoints', component: EndpointListView },
     { path: '/endpoints/new', name: 'endpoint-create', component: EndpointEditView },
     { path: '/endpoints/:id/edit', name: 'endpoint-edit', component: EndpointEditView, props: true },
+    { path: '/executors', name: 'executors', component: ExecutorListView },
+    { path: '/executors/new', name: 'executor-create', component: ExecutorEditView },
+    { path: '/executors/:id/edit', name: 'executor-edit', component: ExecutorEditView, props: true },
+    {
+      path: '/assets/:id/derivations',
+      name: 'asset-derivations',
+      component: DerivationListView,
+      props: true,
+    },
+    {
+      path: '/assets/:id/derivations/new',
+      name: 'derivation-create',
+      component: DerivationEditView,
+      props: true,
+    },
+    {
+      path: '/assets/:id/derivations/:derivationId/edit',
+      name: 'derivation-edit',
+      component: DerivationEditView,
+      props: true,
+    },
   ],
 })
 

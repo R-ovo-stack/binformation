@@ -23,10 +23,15 @@ public class DataAssetService {
 
     private final DataAssetMapper dataAssetMapper;
     private final FlowMapper flowMapper;
+    private final ChangeLogService changeLogService;
 
-    public DataAssetService(DataAssetMapper dataAssetMapper, FlowMapper flowMapper) {
+    public DataAssetService(
+            DataAssetMapper dataAssetMapper,
+            FlowMapper flowMapper,
+            ChangeLogService changeLogService) {
         this.dataAssetMapper = dataAssetMapper;
         this.flowMapper = flowMapper;
+        this.changeLogService = changeLogService;
     }
 
     public List<DataAsset> listAll() {
@@ -52,6 +57,8 @@ public class DataAssetService {
         asset.setCreatedAt(now);
         asset.setUpdatedAt(now);
         dataAssetMapper.insert(asset);
+        changeLogService.record("DATA_ASSET", asset.getId(), "CREATE",
+                "新建数据资产: " + asset.getName(), asset.getId());
         return asset;
     }
 
@@ -63,18 +70,22 @@ public class DataAssetService {
         apply(asset, request);
         asset.setUpdatedAt(LocalDateTime.now());
         dataAssetMapper.updateById(asset);
+        changeLogService.record("DATA_ASSET", id, "UPDATE",
+                "更新数据资产: " + asset.getName(), id);
         return asset;
     }
 
     @Transactional
     public void delete(Long id) {
-        getById(id);
+        DataAsset asset = getById(id);
         Long flowCount = flowMapper.selectCount(
                 new LambdaQueryWrapper<Flow>().eq(Flow::getAssetId, id));
         if (flowCount != null && flowCount > 0) {
             throw new BadRequestException("该资产下仍有 " + flowCount + " 条流向，请先删除或迁移流向");
         }
         dataAssetMapper.deleteById(id);
+        changeLogService.record("DATA_ASSET", id, "DELETE",
+                "删除数据资产: " + asset.getName(), id);
     }
 
     private void validate(DataAssetSaveRequest request) {

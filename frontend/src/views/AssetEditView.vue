@@ -3,6 +3,8 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { createAsset, deleteAsset, getAsset, updateAsset } from '@/api/asset'
+import { listChangeLogsByAsset } from '@/api/changelog'
+import type { ChangeLogEntry } from '@/types/changelog'
 import {
   ASSET_DATA_TYPE_OPTIONS,
   ENTITY_STATUS_OPTIONS,
@@ -16,6 +18,8 @@ const loading = ref(false)
 const saving = ref(false)
 const formRef = ref<FormInstance>()
 const form = reactive<AssetSavePayload>(emptyAssetForm())
+const changeLogs = ref<ChangeLogEntry[]>([])
+const logsLoading = ref(false)
 
 const isEdit = computed(() => Boolean(props.id && props.id !== 'new'))
 const pageTitle = computed(() => (isEdit.value ? '编辑数据资产' : '新建数据资产'))
@@ -25,6 +29,18 @@ const rules: FormRules = {
   code: [{ required: true, message: '请输入编码', trigger: 'blur' }],
   dataType: [{ required: true, message: '请选择类型', trigger: 'change' }],
   status: [{ required: true, message: '请选择状态', trigger: 'change' }],
+}
+
+async function loadChangeLogs() {
+  if (!isEdit.value || !props.id) return
+  logsLoading.value = true
+  try {
+    changeLogs.value = await listChangeLogsByAsset(Number(props.id))
+  } catch {
+    changeLogs.value = []
+  } finally {
+    logsLoading.value = false
+  }
 }
 
 async function load() {
@@ -40,6 +56,7 @@ async function load() {
       owner: asset.owner ?? null,
       remark: asset.remark ?? null,
     })
+    await loadChangeLogs()
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败')
   } finally {
@@ -129,11 +146,35 @@ watch(() => props.id, load)
         <el-button @click="router.push({ name: 'asset-flows', params: { id: props.id! } })">
           管理流向
         </el-button>
+        <el-button @click="router.push({ name: 'asset-derivations', params: { id: props.id! } })">
+          管理派生
+        </el-button>
         <el-button @click="router.push({ name: 'asset-graph', params: { id: props.id! } })">
           一键成图
         </el-button>
       </div>
     </el-form>
+
+    <section v-if="isEdit" class="changelog card" v-loading="logsLoading">
+      <h2>变更记录</h2>
+      <el-empty v-if="!changeLogs.length" description="暂无变更记录" />
+      <el-timeline v-else>
+        <el-timeline-item
+          v-for="log in changeLogs"
+          :key="log.id"
+          :timestamp="log.operatedAt"
+          placement="top"
+        >
+          <p class="log-summary">{{ log.summary }}</p>
+          <p class="log-meta">{{ log.action }} · {{ log.entityType }} #{{ log.entityId }} · {{ log.operator }}</p>
+          <ul v-if="log.items.length" class="log-items">
+            <li v-for="(item, i) in log.items" :key="i">
+              {{ item.fieldName }}：{{ item.oldValue ?? '—' }} → {{ item.newValue ?? '—' }}
+            </li>
+          </ul>
+        </el-timeline-item>
+      </el-timeline>
+    </section>
   </div>
 </template>
 
@@ -174,5 +215,33 @@ h1 {
   display: flex;
   gap: 8px;
   margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.changelog {
+  margin-top: 16px;
+}
+
+.changelog h2 {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+
+.log-summary {
+  margin: 0 0 4px;
+  font-weight: 500;
+}
+
+.log-meta {
+  margin: 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.log-items {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: #475569;
 }
 </style>

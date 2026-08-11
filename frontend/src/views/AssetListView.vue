@@ -40,6 +40,10 @@ function openEndpoints() {
   void router.push({ name: 'endpoints' })
 }
 
+function openExecutors() {
+  void router.push({ name: 'executors' })
+}
+
 onMounted(load)
 </script>
 
@@ -53,6 +57,7 @@ onMounted(load)
       </div>
       <div class="hero-actions">
         <el-button @click="openEndpoints">落点管理</el-button>
+        <el-button @click="openExecutors">程序/脚本</el-button>
         <el-button type="primary" @click="openCreate">新建资产</el-button>
         <el-button :loading="loading" @click="load">刷新</el-button>
       </div>

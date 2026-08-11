@@ -9,6 +9,8 @@ export async function listEndpointOptions(type?: string): Promise<EndpointOption
 }
 
 export async function listExecutorOptions(): Promise<ExecutorOption[]> {
-  const { data } = await http.get<ExecutorOption[]>('/api/executors')
+  const { data } = await http.get<ExecutorOption[]>('/api/executors', {
+    params: { optionsOnly: true },
+  })
   return data
 }

@@ -55,6 +55,7 @@ public class FlowService {
     private final ExecutorMapper executorMapper;
     private final EndpointService endpointService;
     private final ExecutorService executorService;
+    private final ChangeLogService changeLogService;
 
     public FlowService(
             DataAssetMapper dataAssetMapper,
@@ -64,7 +65,8 @@ public class FlowService {
             EndpointMapper endpointMapper,
             ExecutorMapper executorMapper,
             EndpointService endpointService,
-            ExecutorService executorService) {
+            ExecutorService executorService,
+            ChangeLogService changeLogService) {
         this.dataAssetMapper = dataAssetMapper;
         this.flowMapper = flowMapper;
         this.flowPathMapper = flowPathMapper;
@@ -73,6 +75,7 @@ public class FlowService {
         this.executorMapper = executorMapper;
         this.endpointService = endpointService;
         this.executorService = executorService;
+        this.changeLogService = changeLogService;
     }
 
     public List<FlowSummaryDto> listByAsset(Long assetId) {
@@ -114,6 +117,8 @@ public class FlowService {
         flowMapper.insert(flow);
 
         savePathsAndSteps(flow.getId(), request.paths(), now);
+        changeLogService.record("FLOW", flow.getId(), "CREATE",
+                "新建流向: " + flow.getPurpose(), assetId);
         return toDetail(flow, asset.getName());
     }
 
@@ -130,13 +135,17 @@ public class FlowService {
 
         deletePathsForFlow(flowId);
         savePathsAndSteps(flowId, request.paths(), now);
+        changeLogService.record("FLOW", flowId, "UPDATE",
+                "更新流向: " + flow.getPurpose(), flow.getAssetId());
         return toDetail(flow, asset.getName());
     }
 
     @Transactional
     public void delete(Long flowId) {
-        requireFlow(flowId);
+        Flow flow = requireFlow(flowId);
         flowMapper.deleteById(flowId);
+        changeLogService.record("FLOW", flowId, "DELETE",
+                "删除流向: " + flow.getPurpose(), flow.getAssetId());
     }
 
     private void applyFlowFields(Flow flow, FlowSaveRequest request) {
