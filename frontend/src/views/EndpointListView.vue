@@ -11,6 +11,9 @@ import {
   type EndpointTreeNode,
 } from '@/utils/endpointTree'
 import { typeLabel } from '@/types/endpoint'
+import { statusLabel } from '@/types/asset'
+import { attrsSummary } from '@/utils/endpointAttrs'
+import AppNav from '@/components/AppNav.vue'
 
 const router = useRouter()
 const loading = ref(false)
@@ -82,9 +85,9 @@ onMounted(load)
 
 <template>
   <div class="page" v-loading="loading">
+    <AppNav />
     <header class="topbar">
       <div>
-        <el-button link @click="router.push('/')">← 返回资产列表</el-button>
         <h1>落点管理</h1>
         <p class="meta">树形浏览拓扑；在主机等节点上可直接添加子落点（如 idc301 下新增目录）</p>
       </div>
@@ -122,8 +125,16 @@ onMounted(load)
             <div class="tree-main">
               <span class="name">{{ data.label }}</span>
               <el-tag size="small" type="info" effect="plain">{{ data.typeLabel }}</el-tag>
+              <span
+                v-if="attrsSummary(data.type, data.endpoint.attrs)"
+                class="attrs"
+              >
+                {{ attrsSummary(data.type, data.endpoint.attrs) }}
+              </span>
               <span class="id">#{{ data.id }}</span>
-              <el-tag v-if="data.status !== 'ACTIVE'" size="small" type="warning">{{ data.status }}</el-tag>
+              <el-tag v-if="data.status !== 'ACTIVE'" size="small" type="warning">
+                {{ statusLabel(data.status) }}
+              </el-tag>
             </div>
             <div class="tree-actions" @click.stop>
               <template v-if="childTypesForParent(data.type).length === 1">
@@ -231,6 +242,15 @@ h1 {
 .id {
   font-size: 12px;
   color: #94a3b8;
+}
+
+.attrs {
+  font-size: 12px;
+  color: #64748b;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tree-actions {

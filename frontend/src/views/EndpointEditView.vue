@@ -17,6 +17,13 @@ import {
   typeLabel,
   type EndpointSavePayload,
 } from '@/types/endpoint'
+import {
+  attrFieldsForType,
+  hasTypedAttrs,
+  parseAttrsJson,
+  serializeAttrs,
+  suggestNameFromAttrs,
+} from '@/utils/endpointAttrs'
 
 const props = defineProps<{ id?: string }>()
 const route = useRoute()
@@ -29,10 +36,15 @@ const typeLabels = ref<Record<string, string>>({})
 const typeOptions = ref<string[]>([])
 const parentTypeRules = ref<Record<string, string[]>>({})
 const parentCandidates = ref<Array<{ id: number; label: string; type: string }>>([])
+const attrFields = reactive<Record<string, string>>({})
+const showAdvancedJson = ref(false)
+const advancedJson = ref('')
 
 const isEdit = computed(() => Boolean(props.id && props.id !== 'new'))
 const pageTitle = computed(() => (isEdit.value ? '编辑落点' : '新建落点'))
 const isSecurityZone = computed(() => form.type === 'SECURITY_ZONE')
+const typedAttrDefs = computed(() => attrFieldsForType(form.type))
+const useTypedAttrs = computed(() => hasTypedAttrs(form.type))
 
 const parentHint = computed(() => {
   if (!form.parentId) return ''
@@ -44,6 +56,35 @@ const rules: FormRules = {
   type: [{ required: true, message: '请选择类型', trigger: 'change' }],
   name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
   status: [{ required: true, message: '请选择状态', trigger: 'change' }],
+}
+
+function resetAttrFields(type: string, raw?: string | null) {
+  const parsed = parseAttrsJson(raw)
+  const defs = attrFieldsForType(type)
+  for (const key of Object.keys(attrFields)) {
+    delete attrFields[key]
+  }
+  for (const def of defs) {
+    attrFields[def.key] = parsed[def.key] ?? ''
+  }
+  // Keep unknown keys in advanced JSON for typed types
+  const known = new Set(defs.map((d) => d.key))
+  const extras: Record<string, string> = {}
+  for (const [k, v] of Object.entries(parsed)) {
+    if (!known.has(k)) extras[k] = v
+  }
+  advancedJson.value = Object.keys(extras).length ? JSON.stringify(extras, null, 2) : ''
+  showAdvancedJson.value = Object.keys(extras).length > 0
+  if (!defs.length) {
+    advancedJson.value = raw?.trim() ? raw : ''
+    showAdvancedJson.value = true
+  }
+}
+
+function syncNameFromPrimaryAttr() {
+  if (form.name?.trim()) return
+  const suggested = suggestNameFromAttrs(form.type, attrFields)
+  if (suggested) form.name = suggested
 }
 
 async function loadMeta() {
@@ -93,6 +134,7 @@ async function load() {
         owner: ep.owner ?? null,
         remark: ep.remark ?? null,
       })
+      resetAttrFields(ep.type, ep.attrs)
       refreshParentCandidates(await listEndpoints())
     } else {
       Object.assign(form, emptyEndpointForm())
@@ -100,13 +142,11 @@ async function load() {
       const qChild = route.query.childType
       if (typeof qChild === 'string' && qChild) {
         form.type = qChild
-        if (qChild === 'DIRECTORY' && !form.attrs) {
-          form.attrs = '{"dirPath":""}'
-        }
       }
       if (typeof qParent === 'string' && qParent && Number.isFinite(Number(qParent))) {
         form.parentId = Number(qParent)
       }
+      resetAttrFields(form.type, null)
       refreshParentCandidates(await listEndpoints())
     }
   } catch (e) {
@@ -118,7 +158,10 @@ async function load() {
 
 watch(
   () => form.type,
-  async () => {
+  async (type, prev) => {
+    if (prev && type !== prev && !isEdit.value) {
+      resetAttrFields(type, null)
+    }
     refreshParentCandidates(await listEndpoints())
   },
 )
@@ -130,9 +173,45 @@ async function save() {
     ElMessage.warning('请选择父落点')
     return
   }
+  syncNameFromPrimaryAttr()
+  if (!form.name?.trim()) {
+    ElMessage.warning('请输入名称')
+    return
+  }
+
+  let attrs: string | null
+  if (useTypedAttrs.value) {
+    if (showAdvancedJson.value && advancedJson.value.trim()) {
+      try {
+        JSON.parse(advancedJson.value)
+      } catch {
+        ElMessage.error('高级 JSON 格式无效')
+        return
+      }
+    }
+    attrs = serializeAttrs(form.type, attrFields, advancedJson.value)
+  } else {
+    const raw = advancedJson.value.trim()
+    if (raw) {
+      try {
+        JSON.parse(raw)
+      } catch {
+        ElMessage.error('扩展属性 JSON 格式无效')
+        return
+      }
+      attrs = raw
+    } else {
+      attrs = null
+    }
+  }
+
   saving.value = true
   try {
-    const payload = { ...form, parentId: isSecurityZone.value ? null : form.parentId }
+    const payload = {
+      ...form,
+      parentId: isSecurityZone.value ? null : form.parentId,
+      attrs,
+    }
     if (isEdit.value && props.id) {
       await updateEndpoint(Number(props.id), payload)
       ElMessage.success('已保存')
@@ -198,7 +277,7 @@ watch(() => props.id, load)
         <p v-if="parentHint" class="hint">当前父级：{{ parentHint }}</p>
       </el-form-item>
       <el-form-item label="名称" prop="name">
-        <el-input v-model="form.name" placeholder="显示名称，如 topic-A 或 /data/in/" />
+        <el-input v-model="form.name" placeholder="显示名称；留空时可由下方属性自动填充" />
       </el-form-item>
       <el-form-item label="编码">
         <el-input v-model="form.code" placeholder="可选" />
@@ -208,14 +287,40 @@ watch(() => props.id, load)
           <el-option v-for="o in ENTITY_STATUS_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
         </el-select>
       </el-form-item>
-      <el-form-item label="扩展属性">
+
+      <template v-if="useTypedAttrs">
+        <el-form-item
+          v-for="def in typedAttrDefs"
+          :key="def.key"
+          :label="def.label"
+        >
+          <el-input
+            v-model="attrFields[def.key]"
+            :placeholder="def.placeholder"
+            @blur="syncNameFromPrimaryAttr"
+          />
+        </el-form-item>
+        <el-form-item label="高级">
+          <el-checkbox v-model="showAdvancedJson">编辑原始 JSON（额外字段）</el-checkbox>
+        </el-form-item>
+        <el-form-item v-if="showAdvancedJson" label="JSON">
+          <el-input
+            v-model="advancedJson"
+            type="textarea"
+            :rows="3"
+            placeholder='可选，额外键会与上方字段合并，如 {"extra":"x"}'
+          />
+        </el-form-item>
+      </template>
+      <el-form-item v-else label="扩展属性">
         <el-input
-          v-model="form.attrs"
+          v-model="advancedJson"
           type="textarea"
           :rows="3"
-          placeholder='可选 JSON，如 {"topicName":"A"} 或 {"dirPath":"/data/d/"}'
+          placeholder="可选 JSON 对象"
         />
       </el-form-item>
+
       <el-form-item label="责任人">
         <el-input v-model="form.owner" placeholder="可选" />
       </el-form-item>

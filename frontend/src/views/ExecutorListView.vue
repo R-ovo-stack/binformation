@@ -5,6 +5,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { deleteExecutor, listExecutors } from '@/api/executor'
 import type { ExecutorDetail } from '@/types/executor'
 import { EXECUTOR_KIND_OPTIONS } from '@/types/executor'
+import { statusLabel } from '@/types/asset'
+import AppNav from '@/components/AppNav.vue'
 
 const router = useRouter()
 const loading = ref(false)
@@ -51,9 +53,9 @@ onMounted(load)
 
 <template>
   <div class="page">
+    <AppNav />
     <header class="topbar">
       <div>
-        <el-button link @click="router.push('/')">← 返回资产列表</el-button>
         <h1>程序 / 脚本</h1>
         <p class="meta">维护流向步骤与派生加工使用的执行程序或脚本。</p>
       </div>
@@ -70,7 +72,9 @@ onMounted(load)
         <template #default="{ row }">{{ kindLabel(row.kind) }}</template>
       </el-table-column>
       <el-table-column prop="defaultHostLabel" label="默认主机" min-width="180" show-overflow-tooltip />
-      <el-table-column prop="status" label="状态" width="100" />
+      <el-table-column prop="status" label="状态" width="100">
+        <template #default="{ row }">{{ statusLabel(row.status) }}</template>
+      </el-table-column>
       <el-table-column prop="owner" label="责任人" width="120" />
       <el-table-column label="操作" width="140" fixed="right">
         <template #default="{ row }">

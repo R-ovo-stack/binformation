@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { createAsset, deleteAsset, getAsset, updateAsset } from '@/api/asset'
 import { listChangeLogsByAsset } from '@/api/changelog'
-import type { ChangeLogEntry } from '@/types/changelog'
+import { changeActionLabel, changeEntityLabel, type ChangeLogEntry } from '@/types/changelog'
 import {
   ASSET_DATA_TYPE_OPTIONS,
   ENTITY_STATUS_OPTIONS,
@@ -166,7 +166,10 @@ watch(() => props.id, load)
           placement="top"
         >
           <p class="log-summary">{{ log.summary }}</p>
-          <p class="log-meta">{{ log.action }} · {{ log.entityType }} #{{ log.entityId }} · {{ log.operator }}</p>
+          <p class="log-meta">
+            {{ changeActionLabel(log.action) }} · {{ changeEntityLabel(log.entityType) }} #{{ log.entityId }} ·
+            {{ log.operator }}
+          </p>
           <ul v-if="log.items.length" class="log-items">
             <li v-for="(item, i) in log.items" :key="i">
               {{ item.fieldName }}：{{ item.oldValue ?? '—' }} → {{ item.newValue ?? '—' }}

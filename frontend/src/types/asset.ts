@@ -22,6 +22,14 @@ export const ENTITY_STATUS_OPTIONS = [
   { value: 'DEPRECATED', label: '废弃' },
 ] as const
 
+export function statusLabel(status: string): string {
+  return ENTITY_STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status
+}
+
+export function dataTypeLabel(dataType: string): string {
+  return ASSET_DATA_TYPE_OPTIONS.find((o) => o.value === dataType)?.label ?? dataType
+}
+
 export function emptyAssetForm(): AssetSavePayload {
   return {
     name: '',

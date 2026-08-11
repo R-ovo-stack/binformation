@@ -6,6 +6,7 @@ import { getAsset } from '@/api/asset'
 import { deleteDerivation, listDerivationsByAsset } from '@/api/derivation'
 import type { DataAsset } from '@/types/graph'
 import type { DerivationDetail } from '@/types/derivation'
+import { dataTypeLabel, statusLabel } from '@/types/asset'
 
 const props = defineProps<{ id: string }>()
 const router = useRouter()
@@ -72,7 +73,7 @@ onMounted(load)
         </el-button>
         <h1>{{ asset?.name || '派生/加工' }}</h1>
         <p class="meta">
-          <span v-if="asset">{{ asset.code }} · {{ asset.dataType }}</span>
+          <span v-if="asset">{{ asset.code }} · {{ dataTypeLabel(asset.dataType) }}</span>
           <span v-if="asset"> · 共 {{ derivations.length }} 条派生</span>
         </p>
       </div>
@@ -97,7 +98,9 @@ onMounted(load)
       </el-table-column>
       <el-table-column prop="executorName" label="程序/脚本" min-width="140" />
       <el-table-column prop="hostLabel" label="执行主机" min-width="140" show-overflow-tooltip />
-      <el-table-column prop="status" label="状态" width="100" />
+      <el-table-column prop="status" label="状态" width="100">
+        <template #default="{ row }">{{ statusLabel(row.status) }}</template>
+      </el-table-column>
       <el-table-column label="操作" width="140" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="openEdit(row)">编辑</el-button>

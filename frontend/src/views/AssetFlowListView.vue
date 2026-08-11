@@ -6,6 +6,7 @@ import { getAsset } from '@/api/asset'
 import { deleteFlow, listFlowsByAsset } from '@/api/flow'
 import type { DataAsset } from '@/types/graph'
 import { purposeLabel, type FlowSummary } from '@/types/flow'
+import { dataTypeLabel, statusLabel } from '@/types/asset'
 
 const props = defineProps<{ id: string }>()
 const router = useRouter()
@@ -74,7 +75,7 @@ onMounted(load)
         <el-button link @click="router.push('/')">← 返回资产列表</el-button>
         <h1>{{ asset?.name || '流向管理' }}</h1>
         <p class="meta">
-          <span v-if="asset">{{ asset.code }} · {{ asset.dataType }}</span>
+          <span v-if="asset">{{ asset.code }} · {{ dataTypeLabel(asset.dataType) }}</span>
           <span v-if="asset"> · 共 {{ flows.length }} 条流向</span>
         </p>
       </div>
@@ -104,7 +105,9 @@ onMounted(load)
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="status" label="状态" width="96" />
+      <el-table-column label="状态" width="96">
+        <template #default="{ row }">{{ statusLabel(row.status) }}</template>
+      </el-table-column>
       <el-table-column label="路径/步骤" width="110">
         <template #default="{ row }">{{ row.pathCount }} / {{ row.stepCount }}</template>
       </el-table-column>

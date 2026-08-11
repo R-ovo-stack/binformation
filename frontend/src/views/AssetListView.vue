@@ -4,6 +4,8 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { listAssets } from '@/api/asset'
 import type { DataAsset } from '@/types/graph'
+import { dataTypeLabel, statusLabel } from '@/types/asset'
+import AppNav from '@/components/AppNav.vue'
 
 const router = useRouter()
 const loading = ref(false)
@@ -36,19 +38,12 @@ function openCreate() {
   void router.push({ name: 'asset-create' })
 }
 
-function openEndpoints() {
-  void router.push({ name: 'endpoints' })
-}
-
-function openExecutors() {
-  void router.push({ name: 'executors' })
-}
-
 onMounted(load)
 </script>
 
 <template>
   <div class="page">
+    <AppNav />
     <header class="hero">
       <div>
         <p class="brand">数据中心台账</p>
@@ -56,8 +51,6 @@ onMounted(load)
         <p class="sub">维护数据资产、落点与流向，或一键生成流向图。</p>
       </div>
       <div class="hero-actions">
-        <el-button @click="openEndpoints">落点管理</el-button>
-        <el-button @click="openExecutors">程序/脚本</el-button>
         <el-button type="primary" @click="openCreate">新建资产</el-button>
         <el-button :loading="loading" @click="load">刷新</el-button>
       </div>
@@ -73,13 +66,24 @@ onMounted(load)
     >
       <el-table-column prop="name" label="名称" min-width="160" />
       <el-table-column prop="code" label="编码" min-width="140" />
-      <el-table-column prop="dataType" label="类型" width="120" />
-      <el-table-column prop="status" label="状态" width="100" />
+      <el-table-column label="类型" width="120">
+        <template #default="{ row }">{{ dataTypeLabel(row.dataType) }}</template>
+      </el-table-column>
+      <el-table-column label="状态" width="100">
+        <template #default="{ row }">{{ statusLabel(row.status) }}</template>
+      </el-table-column>
       <el-table-column prop="owner" label="责任人" width="120" />
-      <el-table-column label="操作" width="260" fixed="right">
+      <el-table-column label="操作" width="320" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click.stop="openEdit(row)">编辑</el-button>
           <el-button link type="primary" @click.stop="openFlows(row)">管理流向</el-button>
+          <el-button
+            link
+            type="primary"
+            @click.stop="router.push({ name: 'asset-derivations', params: { id: String(row.id) } })"
+          >
+            派生
+          </el-button>
           <el-button link type="primary" @click.stop="openGraph(row)">一键成图</el-button>
         </template>
       </el-table-column>
