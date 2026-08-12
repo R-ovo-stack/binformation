@@ -31,6 +31,7 @@ const asset = ref<DataAsset | null>(null)
 const allEndpoints = ref<EndpointOption[]>([])
 const canvasEndpointIds = ref<number[]>([])
 const flowSummaries = ref<FlowSummary[]>([])
+const flowDetailsCache = ref<Record<number, FlowDetail>>({})
 const executors = ref<ExecutorOption[]>([])
 const hosts = computed(() => allEndpoints.value.filter((e) => e.type === 'HOST'))
 
@@ -44,9 +45,11 @@ const boardKey = ref(0)
 
 const assetId = computed(() => Number(props.id))
 
-const canvasEndpoints = computed(() =>
-  allEndpoints.value.filter((ep) => canvasEndpointIds.value.includes(ep.id)),
-)
+const flowDetailsForBoard = computed(() => {
+  const map = { ...flowDetailsCache.value }
+  if (editing.value?.id) map[editing.value.id] = editing.value
+  return map
+})
 
 const boardEdges = computed<BoardFlowEdge[]>(() => {
   const edges: BoardFlowEdge[] = flowSummaries.value.map((f) => ({
@@ -119,6 +122,10 @@ async function load() {
       listEndpointOptions(),
       listExecutorOptions(),
     ])
+    const flowDetails = await Promise.all(flows.map((f) => getFlow(f.id)))
+    const nextDetailsCache = Object.fromEntries(
+      flowDetails.filter((d) => d.id != null).map((d) => [d.id!, normalizeDetail(d)]),
+    )
 
     const used = new Set<number>()
     flows.forEach((f) => {
@@ -158,6 +165,7 @@ async function load() {
     executors.value = execs
     allEndpoints.value = eps
     flowSummaries.value = flows
+    flowDetailsCache.value = nextDetailsCache
     canvasEndpointIds.value = nextCanvasIds
     editing.value = nextEditing
     selectedEdgeId.value = nextSelected
@@ -346,12 +354,14 @@ async function savePanel() {
       await refreshFlows()
       selectedEdgeId.value = `flow-${created.id}`
       editing.value = normalizeDetail(created)
+      if (created.id) flowDetailsCache.value[created.id] = editing.value
       selectedPathIndex.value = Math.min(selectedPathIndex.value, editing.value.paths.length - 1)
     } else if (flow.id) {
       const updated = await updateFlow(flow.id, payloadBase)
       ElMessage.success('已保存')
       await refreshFlows()
       editing.value = normalizeDetail(updated)
+      if (updated.id) flowDetailsCache.value[updated.id] = editing.value
       selectedPathIndex.value = Math.min(selectedPathIndex.value, editing.value.paths.length - 1)
     }
   } catch (e) {
@@ -362,7 +372,12 @@ async function savePanel() {
 }
 
 async function refreshFlows() {
-  flowSummaries.value = await listFlowsByAsset(assetId.value)
+  const flows = await listFlowsByAsset(assetId.value)
+  flowSummaries.value = flows
+  const details = await Promise.all(flows.map((f) => getFlow(f.id)))
+  flowDetailsCache.value = Object.fromEntries(
+    details.filter((d) => d.id != null).map((d) => [d.id!, normalizeDetail(d)]),
+  )
 }
 
 async function removePanelFlow() {
@@ -465,7 +480,12 @@ watch(
         :key="boardKey"
         ref="canvasRef"
         class="board"
-        :endpoints="canvasEndpoints"
+        :asset="asset"
+        :canvas-endpoint-ids="canvasEndpointIds"
+        :all-endpoints="allEndpoints"
+        :executors="executors"
+        :flow-details-by-id="flowDetailsForBoard"
+        :draft="draft"
         :edges="boardEdges"
         :selected-edge-id="selectedEdgeId"
         @select-edge="selectEdge"
