@@ -584,13 +584,90 @@ function resolveOverlaps(
 export function visibleRelations(
   relations: GraphRelation[] | undefined,
   mode: LayoutMode,
+  options?: { compressExecutorHost?: boolean },
 ): GraphRelation[] {
   const list = relations ?? []
+  if (options?.compressExecutorHost) {
+    return []
+  }
   if (mode === 'compact') {
     return list.filter((r) => r.type === 'RUNS_ON')
   }
   // 完整模式：包含与集群内 Broker 都用卡片表达
   return list.filter((r) => r.type === 'RUNS_ON')
+}
+
+/**
+ * 压缩程序所属节点：不单独画「部署于」连线与部署主机节点，
+ * 改为在程序框内展示主机名称。
+ */
+export function applyCompressExecutorHost(graph: AssetGraph): AssetGraph {
+  const nodeMap = nodeById(graph)
+  const runsOn = (graph.relations || []).filter((r) => r.type === 'RUNS_ON')
+  if (!runsOn.length) {
+    return {
+      ...graph,
+      relations: (graph.relations || []).filter((r) => r.type !== 'RUNS_ON'),
+    }
+  }
+
+  const hostLabelsByExecutor = new Map<string, string[]>()
+  const deployHostIds = new Set<string>()
+  for (const rel of runsOn) {
+    deployHostIds.add(rel.target)
+    const host = nodeMap.get(rel.target)
+    const label = (host?.label || rel.label || '').trim()
+    if (!label) continue
+    const list = hostLabelsByExecutor.get(rel.source) ?? []
+    if (!list.includes(label)) list.push(label)
+    hostLabelsByExecutor.set(rel.source, list)
+  }
+
+  const flowEndpointIds = new Set<string>()
+  graph.edges.forEach((edge) => {
+    flowEndpointIds.add(edge.source)
+    flowEndpointIds.add(edge.target)
+  })
+
+  // 仅作为部署目标、且不是流向端点的主机，压缩后从画布移除
+  const removableHosts = new Set(
+    [...deployHostIds].filter((id) => {
+      if (flowEndpointIds.has(id)) return false
+      const node = nodeMap.get(id)
+      if (!node) return true
+      if (node.kind === 'EXECUTOR') return false
+      return node.type === 'HOST'
+    }),
+  )
+
+  const nodes = graph.nodes
+    .filter((n) => !removableHosts.has(n.id))
+    .map((n) => {
+      if (n.kind !== 'EXECUTOR') return n
+      const labels = hostLabelsByExecutor.get(n.id)
+      if (!labels?.length) return n
+      return { ...n, deployHostLabel: labels.join('、') }
+    })
+
+  const nodeIds = new Set(nodes.map((n) => n.id))
+  const relations = (graph.relations || []).filter(
+    (r) =>
+      r.type !== 'RUNS_ON' &&
+      nodeIds.has(r.source) &&
+      nodeIds.has(r.target),
+  )
+  const groupIds = new Set(nodes.map((n) => n.groupId).filter(Boolean) as string[])
+  const groups = graph.groups.filter((g) => groupIds.has(g.id))
+
+  return { ...graph, nodes, relations, groups }
+}
+
+export function executorNodeLabel(node: Pick<GraphNode, 'label' | 'deployHostLabel'>): string {
+  const host = node.deployHostLabel?.trim()
+  if (host) {
+    return `${node.label}\n程序 @ ${host}`
+  }
+  return `${node.label}\n程序`
 }
 
 export function purposeLabel(purpose: string): string {

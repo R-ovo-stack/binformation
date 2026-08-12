@@ -19,6 +19,7 @@ const savingLayout = ref(false)
 const includeAuxiliary = ref(false)
 const includeUpstream = ref(false)
 const layoutMode = ref<LayoutMode>('compact')
+const compressExecutorHost = ref(false)
 const graph = ref<AssetGraph | null>(null)
 const selectedEdge = ref<GraphEdge | null>(null)
 const canvasRef = ref<InstanceType<typeof FlowGraphCanvas> | null>(null)
@@ -150,6 +151,12 @@ onMounted(() => {
           <el-radio-button label="compact">简洁</el-radio-button>
           <el-radio-button label="full">完整</el-radio-button>
         </el-radio-group>
+        <el-switch
+          v-model="compressExecutorHost"
+          inline-prompt
+          active-text="压缩部署"
+          inactive-text="展开部署"
+        />
         <el-button @click="openFlows">管理流向</el-button>
         <el-button @click="openDerivations">管理派生</el-button>
         <el-button :loading="savingLayout" @click="saveLayout">保存布局</el-button>
@@ -162,16 +169,18 @@ onMounted(() => {
     </header>
 
     <p class="mobile-tip">
-      完整模式：Kafka 集群卡片内主题/节点不可单独拖动，只能拖整卡。简洁=主链路。派生输出资产可开「含前置」查看输入资产流程。
+      完整模式：Kafka 集群卡片内主题/节点不可单独拖动，只能拖整卡。简洁=主链路。
+      「压缩部署」开启后不画程序→主机部署连线，主机名写入程序框。派生输出资产可开「含前置」。
     </p>
 
     <div class="workspace">
       <FlowGraphCanvas
-        :key="layoutMode"
+        :key="`${layoutMode}-${compressExecutorHost}`"
         ref="canvasRef"
         class="canvas"
         :graph="graph"
         :layout-mode="layoutMode"
+        :compress-executor-host="compressExecutorHost"
         @select-edge="onSelectEdge"
       />
       <EdgeDetailPanel class="side" :edge="selectedEdge" :asset-id="assetId" />

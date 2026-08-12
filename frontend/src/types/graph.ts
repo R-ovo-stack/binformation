@@ -25,6 +25,8 @@ export interface GraphNode {
   breadcrumb?: string
   layoutX?: number | null
   layoutY?: number | null
+  /** 压缩部署主机时，写入程序框展示的主机名 */
+  deployHostLabel?: string | null
 }
 
 export interface GraphStep {

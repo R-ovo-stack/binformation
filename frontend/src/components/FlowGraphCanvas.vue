@@ -5,8 +5,10 @@ import type { AssetGraph, GraphEdge, GraphNode } from '@/types/graph'
 import {
   NODE_HEIGHT,
   NODE_WIDTH,
+  applyCompressExecutorHost,
   edgeStroke,
   endpointTypeLabel,
+  executorNodeLabel,
   expandDisplayEdges,
   filterGraphForMode,
   layoutGraph,
@@ -17,6 +19,8 @@ import {
 const props = defineProps<{
   graph: AssetGraph | null
   layoutMode?: LayoutMode
+  /** 压缩程序所属节点：不画部署连线，主机名写入程序框 */
+  compressExecutorHost?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -29,10 +33,12 @@ const error = ref('')
 let graphInstance: Graph | null = null
 
 const mode = computed<LayoutMode>(() => props.layoutMode || 'compact')
+const compressHost = computed(() => Boolean(props.compressExecutorHost))
 
 const viewGraph = computed(() => {
   if (!props.graph) return null
-  return filterGraphForMode(props.graph, mode.value)
+  const filtered = filterGraphForMode(props.graph, mode.value)
+  return compressHost.value ? applyCompressExecutorHost(filtered) : filtered
 })
 
 const edgeMap = computed(() => {
@@ -215,7 +221,10 @@ async function render() {
       const isBrokerChip = node.nestRole === 'broker'
       const isTopicInner = node.nestRole === 'topic'
       const w = node.width ?? NODE_WIDTH
-      const h = node.height ?? NODE_HEIGHT
+      const h =
+        isExecutor && node.deployHostLabel
+          ? Math.max(node.height ?? NODE_HEIGHT, 78)
+          : (node.height ?? NODE_HEIGHT)
 
       // 必须用绝对坐标 addNode，再 addChild，由 X6 转为相对坐标。
       // 若先传相对坐标再 addChild，会被二次换算，Broker 会掉到卡片外。
@@ -258,7 +267,7 @@ async function render() {
           },
           label: {
             text: isExecutor
-              ? `${node.label}\n程序`
+              ? executorNodeLabel(node)
               : isBrokerChip
                 ? node.label
                 : `${node.label}\n${endpointTypeLabel(node.type)}`,
@@ -336,7 +345,9 @@ async function render() {
       })
     })
 
-    visibleRelations(g.relations, currentMode).forEach((rel) => {
+    visibleRelations(g.relations, currentMode, {
+      compressExecutorHost: compressHost.value,
+    }).forEach((rel) => {
       const isRunsOn = rel.type === 'RUNS_ON'
       const stroke = isRunsOn
         ? '#c2410c'
@@ -455,7 +466,7 @@ function collectEndpointLayouts(): Array<{ endpointId: number; layoutX: number; 
 defineExpose({ zoomToFit, zoomIn, zoomOut, exportPng, render, collectEndpointLayouts })
 
 watch(
-  () => [props.graph, props.layoutMode] as const,
+  () => [props.graph, props.layoutMode, props.compressExecutorHost] as const,
   () => {
     void render()
   },
