@@ -92,7 +92,7 @@ function hostIdsForEdge(edge: GraphEdge): string[] {
   return hosts
 }
 
-/** 简洁模式：主链路落点 + 程序 + 部署主机；完整模式保留全部 */
+/** 简洁模式：主链路落点 + 程序 + 部署主机 + 主题所属集群；完整模式保留全部 */
 export function filterGraphForMode(graph: AssetGraph, mode: LayoutMode): AssetGraph {
   if (mode === 'full') return graph
 
@@ -107,7 +107,12 @@ export function filterGraphForMode(graph: AssetGraph, mode: LayoutMode): AssetGr
     hostIdsForEdge(edge).forEach((id) => keep.add(id))
   })
 
-  ;(graph.relations || []).forEach((r) => {
+  const relations = graph.relations || []
+  // 保留主题/目录所属的 Kafka、RocketMQ、对象存储等容器，以及程序部署主机
+  relations.forEach((r) => {
+    if (r.type === 'CONTAINS' && keep.has(r.target)) {
+      keep.add(r.source)
+    }
     if (r.type === 'RUNS_ON' && keep.has(r.source)) {
       keep.add(r.target)
     }
@@ -116,16 +121,16 @@ export function filterGraphForMode(graph: AssetGraph, mode: LayoutMode): AssetGr
   const nodes = graph.nodes.filter((n) => keep.has(n.id))
   const nodeIds = new Set(nodes.map((n) => n.id))
   const edges = primaryEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target))
-  const relations = (graph.relations || []).filter(
+  const keptRelations = relations.filter(
     (r) =>
-      r.type === 'RUNS_ON' &&
+      (r.type === 'RUNS_ON' || r.type === 'CONTAINS' || r.type === 'BROKER_OF') &&
       nodeIds.has(r.source) &&
       nodeIds.has(r.target),
   )
   const groupIds = new Set(nodes.map((n) => n.groupId).filter(Boolean) as string[])
   const groups = graph.groups.filter((g) => groupIds.has(g.id))
 
-  return { ...graph, nodes, edges, relations, groups }
+  return { ...graph, nodes, edges, relations: keptRelations, groups }
 }
 
 /**
@@ -275,7 +280,7 @@ function barycenter(
  * 1) 流向按步骤展开后拓扑分层（左→右）
  * 2) 安全区做水平泳道（上→下）
  * 3) 层内用邻接重心减少交叉
- * 4) 完整模式：CONTAINS 画成大框套小框；Broker / 部署主机作卫星
+ * 4) Kafka/RocketMQ CONTAINS 画成大框套小框；完整模式再收 Broker；部署主机作卫星
  */
 export function layoutGraphSmart(graph: AssetGraph, mode: LayoutMode = 'compact'): PositionedNode[] {
   const view = filterGraphForMode(graph, mode)
@@ -301,11 +306,11 @@ export function layoutGraphSmart(graph: AssetGraph, mode: LayoutMode = 'compact'
     mainIds.add(e.target)
   })
 
-  // 主链：落点+程序；HOST /（完整模式）Kafka|主机容器先不当脊柱点
+  // 主链：落点+程序；HOST / Kafka|RocketMQ 容器不当脊柱点（容器由主题锚点生成）
   const isSatellite = (n: GraphNode) => {
     if (n.kind === 'EXECUTOR') return false
     if (n.type === 'HOST') return true
-    if (mode === 'full' && (n.type === 'KAFKA' || n.type === 'ROCKETMQ')) return true
+    if (n.type === 'KAFKA' || n.type === 'ROCKETMQ' || n.type === 'OBJECT_STORAGE') return true
     return false
   }
 
@@ -372,109 +377,102 @@ export function layoutGraphSmart(graph: AssetGraph, mode: LayoutMode = 'compact'
     })
   })
 
-  const allRelations = mode === 'full' ? graph.relations || [] : view.relations || []
+  // 用 view 中保留的 CONTAINS/BROKER_OF；完整模式输入未过滤时本身含全部关系
+  const allRelations = view.relations || []
   const parentOf = new Map<string, string>()
   const childrenOf = new Map<string, string[]>()
   const containerMeta = new Map<string, { width: number; height: number; x: number; y: number }>()
   const nestRole = new Map<string, 'topic' | 'broker'>()
   const leafSize = new Map<string, { width: number; height: number }>()
 
-  if (mode === 'full') {
-    allRelations
-      .filter((r) => r.type === 'CONTAINS')
-      .forEach((r) => {
-        if (!positions.has(r.target) && !map.has(r.target)) return
-        parentOf.set(r.target, r.source)
-        const childNode = map.get(r.target)
-        const role =
-          childNode?.type === 'KAFKA_TOPIC' || childNode?.type === 'ROCKETMQ_TOPIC'
-            ? 'topic'
-            : childNode?.type === 'DIRECTORY'
-              ? 'topic' // 目录也用内容区主块样式
-              : 'topic'
-        nestRole.set(r.target, role)
-        if (!childrenOf.has(r.source)) childrenOf.set(r.source, [])
-        if (!childrenOf.get(r.source)!.includes(r.target)) {
-          childrenOf.get(r.source)!.push(r.target)
-        }
-      })
-
-    const brokersByKafka = new Map<string, string[]>()
-    allRelations
-      .filter((r) => r.type === 'BROKER_OF')
-      .forEach((r) => {
-        if (!brokersByKafka.has(r.source)) brokersByKafka.set(r.source, [])
-        brokersByKafka.get(r.source)!.push(r.target)
-      })
-
-    // 先保证每个被包含主题有坐标（若仅父在图中）
-    childrenOf.forEach((topicIds) => {
-      topicIds.forEach((tid, i) => {
-        if (positions.has(tid)) return
-        const sibling = topicIds.map((id) => positions.get(id)).find(Boolean)
-        positions.set(tid, {
-          x: (sibling?.x ?? 140) + i * (TOPIC_INNER_W + INNER_GAP),
-          y: sibling?.y ?? 160,
-        })
-      })
-    })
-
-    childrenOf.forEach((topicIds, kafkaId) => {
-      const brokers = (brokersByKafka.get(kafkaId) || []).filter((id) => map.has(id))
-      const metrics = clusterMetrics(topicIds.length, brokers.length)
-
-      // 以主题脊柱位置为锚：卡片中心对齐主题列，主题落在标题下的内容区
-      const anchors = topicIds.map((id) => positions.get(id)!).filter(Boolean)
-      if (!anchors.length) return
-      const anchorX = anchors.reduce((s, p) => s + p.x, 0) / anchors.length
-      const anchorY = anchors.reduce((s, p) => s + p.y, 0) / anchors.length
-
-      // 内容区中心（主题行）相对卡片中心的偏移
-      const contentCenterOffsetY =
-        -metrics.height / 2 + CLUSTER_HEADER + CLUSTER_PAD + TOPIC_INNER_H / 2
-      const cardCx = anchorX
-      const cardCy = anchorY - contentCenterOffsetY
-
-      positions.set(kafkaId, { x: cardCx, y: cardCy })
-      containerMeta.set(kafkaId, {
-        width: metrics.width,
-        height: metrics.height,
-        x: cardCx,
-        y: cardCy,
-      })
-
-      // 主题横排，整体水平居中于卡片
-      const topicsSpan =
-        topicIds.length * TOPIC_INNER_W + Math.max(0, topicIds.length - 1) * INNER_GAP
-      const topicLeft = cardCx - topicsSpan / 2
-      topicIds.forEach((tid, i) => {
-        const tx = topicLeft + TOPIC_INNER_W / 2 + i * (TOPIC_INNER_W + INNER_GAP)
-        const ty = cardCy + contentCenterOffsetY
-        positions.set(tid, { x: tx, y: ty })
-        parentOf.set(tid, kafkaId)
-        nestRole.set(tid, 'topic')
-        leafSize.set(tid, { width: TOPIC_INNER_W, height: TOPIC_INNER_H })
-      })
-
-      // Broker 芯片收进卡片底栏（视觉归属集群，不再甩在外面）
-      if (brokers.length) {
-        const brokersSpan =
-          brokers.length * BROKER_CHIP_W + Math.max(0, brokers.length - 1) * INNER_GAP
-        const brokerLeft = cardCx - brokersSpan / 2
-        const brokerCy =
-          cardCy + metrics.height / 2 - CLUSTER_PAD - BROKER_CHIP_H / 2
-        brokers.forEach((bid, i) => {
-          positions.set(bid, {
-            x: brokerLeft + BROKER_CHIP_W / 2 + i * (BROKER_CHIP_W + INNER_GAP),
-            y: brokerCy,
-          })
-          parentOf.set(bid, kafkaId)
-          nestRole.set(bid, 'broker')
-          leafSize.set(bid, { width: BROKER_CHIP_W, height: BROKER_CHIP_H })
-        })
+  allRelations
+    .filter((r) => r.type === 'CONTAINS')
+    .forEach((r) => {
+      if (!positions.has(r.target) && !map.has(r.target)) return
+      parentOf.set(r.target, r.source)
+      nestRole.set(r.target, 'topic')
+      if (!childrenOf.has(r.source)) childrenOf.set(r.source, [])
+      if (!childrenOf.get(r.source)!.includes(r.target)) {
+        childrenOf.get(r.source)!.push(r.target)
       }
     })
-  }
+
+  const brokersByKafka = new Map<string, string[]>()
+  allRelations
+    .filter((r) => r.type === 'BROKER_OF')
+    .forEach((r) => {
+      if (!map.has(r.target)) return
+      if (!brokersByKafka.has(r.source)) brokersByKafka.set(r.source, [])
+      brokersByKafka.get(r.source)!.push(r.target)
+    })
+
+  // 先保证每个被包含主题有坐标（若仅父在图中）
+  childrenOf.forEach((topicIds) => {
+    topicIds.forEach((tid, i) => {
+      if (positions.has(tid)) return
+      const sibling = topicIds.map((id) => positions.get(id)).find(Boolean)
+      positions.set(tid, {
+        x: (sibling?.x ?? 140) + i * (TOPIC_INNER_W + INNER_GAP),
+        y: sibling?.y ?? 160,
+      })
+    })
+  })
+
+  childrenOf.forEach((topicIds, kafkaId) => {
+    // 完整模式收 Broker；简洁模式若 broker 节点已在图中也一并收入卡片
+    const brokers = (brokersByKafka.get(kafkaId) || []).filter((id) => map.has(id))
+    const metrics = clusterMetrics(topicIds.length, brokers.length)
+
+    // 以主题脊柱位置为锚：卡片中心对齐主题列，主题落在标题下的内容区
+    const anchors = topicIds.map((id) => positions.get(id)!).filter(Boolean)
+    if (!anchors.length) return
+    const anchorX = anchors.reduce((s, p) => s + p.x, 0) / anchors.length
+    const anchorY = anchors.reduce((s, p) => s + p.y, 0) / anchors.length
+
+    // 内容区中心（主题行）相对卡片中心的偏移
+    const contentCenterOffsetY =
+      -metrics.height / 2 + CLUSTER_HEADER + CLUSTER_PAD + TOPIC_INNER_H / 2
+    const cardCx = anchorX
+    const cardCy = anchorY - contentCenterOffsetY
+
+    positions.set(kafkaId, { x: cardCx, y: cardCy })
+    containerMeta.set(kafkaId, {
+      width: metrics.width,
+      height: metrics.height,
+      x: cardCx,
+      y: cardCy,
+    })
+
+    // 主题横排，整体水平居中于卡片
+    const topicsSpan =
+      topicIds.length * TOPIC_INNER_W + Math.max(0, topicIds.length - 1) * INNER_GAP
+    const topicLeft = cardCx - topicsSpan / 2
+    topicIds.forEach((tid, i) => {
+      const tx = topicLeft + TOPIC_INNER_W / 2 + i * (TOPIC_INNER_W + INNER_GAP)
+      const ty = cardCy + contentCenterOffsetY
+      positions.set(tid, { x: tx, y: ty })
+      parentOf.set(tid, kafkaId)
+      nestRole.set(tid, 'topic')
+      leafSize.set(tid, { width: TOPIC_INNER_W, height: TOPIC_INNER_H })
+    })
+
+    // Broker 芯片收进卡片底栏（视觉归属集群，不再甩在外面）
+    if (brokers.length) {
+      const brokersSpan =
+        brokers.length * BROKER_CHIP_W + Math.max(0, brokers.length - 1) * INNER_GAP
+      const brokerLeft = cardCx - brokersSpan / 2
+      const brokerCy = cardCy + metrics.height / 2 - CLUSTER_PAD - BROKER_CHIP_H / 2
+      brokers.forEach((bid, i) => {
+        positions.set(bid, {
+          x: brokerLeft + BROKER_CHIP_W / 2 + i * (BROKER_CHIP_W + INNER_GAP),
+          y: brokerCy,
+        })
+        parentOf.set(bid, kafkaId)
+        nestRole.set(bid, 'broker')
+        leafSize.set(bid, { width: BROKER_CHIP_W, height: BROKER_CHIP_H })
+      })
+    }
+  })
 
   allRelations
     .filter((r) => r.type === 'RUNS_ON')
