@@ -40,6 +40,8 @@ npm run dev
 | GET | `/api/assets` | 资产列表 |
 | GET | `/api/assets/{id}` | 资产详情 |
 | GET | `/api/graph/panorama` | 资产全景图（血缘：派生 + 落点衔接） |
+| GET | `/api/graph/panorama/technical` | 技术全景（合并多资产落点级成图，`assetIds` 可选） |
+| GET | `/api/export/full?format=json\|zip` | 全量导出（全部落点 + 全部资产流向；JSON 嵌套结构或 CSV 压缩包） |
 | GET | `/api/assets/{id}/graph` | 一键成图 GraphDTO |
 
 ```bash

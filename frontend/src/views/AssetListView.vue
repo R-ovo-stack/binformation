@@ -3,12 +3,15 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { listAssets } from '@/api/asset'
+import { downloadFullLedgerExport } from '@/api/export'
 import type { DataAsset } from '@/types/graph'
 import { dataTypeLabel, statusLabel } from '@/types/asset'
 import AppNav from '@/components/AppNav.vue'
 
 const router = useRouter()
 const loading = ref(false)
+const exportingJson = ref(false)
+const exportingZip = ref(false)
 const assets = ref<DataAsset[]>([])
 
 async function load() {
@@ -38,6 +41,19 @@ function openCreate() {
   void router.push({ name: 'asset-create' })
 }
 
+async function exportLedger(format: 'json' | 'zip') {
+  const exporting = format === 'json' ? exportingJson : exportingZip
+  exporting.value = true
+  try {
+    await downloadFullLedgerExport(format)
+    ElMessage.success(format === 'json' ? 'JSON 全量导出已开始下载' : 'CSV 压缩包导出已开始下载')
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '导出失败')
+  } finally {
+    exporting.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -52,6 +68,8 @@ onMounted(load)
       </div>
       <div class="hero-actions">
         <el-button @click="router.push('/panorama')">资产全景图</el-button>
+        <el-button :loading="exportingJson" @click="exportLedger('json')">导出 JSON</el-button>
+        <el-button :loading="exportingZip" @click="exportLedger('zip')">导出 CSV 包</el-button>
         <el-button type="primary" @click="openCreate">新建资产</el-button>
         <el-button :loading="loading" @click="load">刷新</el-button>
       </div>
