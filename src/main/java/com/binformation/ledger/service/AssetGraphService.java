@@ -37,6 +37,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -196,6 +197,189 @@ public class AssetGraphService {
                 derivations,
                 hasUpstream
         );
+    }
+
+    /**
+     * P1 技术全景：合并多资产（或全部）的主流向/辅助流向，落点级成图。
+     * 不使用单资产已保存布局，统一自动布局。
+     */
+    public AssetGraphDto buildTechnicalPanorama(
+            List<Long> assetIds,
+            boolean includeAuxiliary,
+            boolean includeDerivationBridges) {
+        Map<Long, DataAsset> assetsById = dataAssetMapper.selectList(null).stream()
+                .collect(Collectors.toMap(DataAsset::getId, Function.identity(), (a, b) -> a, LinkedHashMap::new));
+
+        Set<Long> scope = resolveAssetScope(assetIds, assetsById.keySet());
+        if (scope.isEmpty()) {
+            return emptyTechnicalPanorama();
+        }
+
+        List<Flow> flows = new ArrayList<>();
+        Map<Long, DataAsset> assetByFlowId = new HashMap<>();
+        Map<Long, Boolean> upstreamByFlowId = new HashMap<>();
+        for (Long assetId : scope.stream().sorted().toList()) {
+            DataAsset asset = assetsById.get(assetId);
+            if (asset == null) {
+                continue;
+            }
+            for (Flow flow : loadFlowsForAsset(assetId, includeAuxiliary)) {
+                flows.add(flow);
+                assetByFlowId.put(flow.getId(), asset);
+                upstreamByFlowId.put(flow.getId(), false);
+            }
+        }
+
+        Map<Long, Endpoint> allEndpoints = endpointMapper.selectList(null).stream()
+                .collect(Collectors.toMap(Endpoint::getId, Function.identity()));
+
+        Set<Long> endpointIds = collectEndpointIdsFromFlows(flows);
+        List<Long> flowIds = flows.stream().map(Flow::getId).toList();
+        Map<Long, List<FlowPath>> pathsByFlow = loadPathsByFlow(flowIds);
+        Map<Long, List<FlowStep>> stepsByPath = loadStepsByPath(pathsByFlow);
+        addHostEndpointIds(endpointIds, stepsByPath);
+
+        List<GraphRelationDto> relations = new ArrayList<>();
+        relations.addAll(enrichKafkaTopology(endpointIds, allEndpoints));
+        relations.addAll(enrichDirectoryHostTopology(endpointIds, allEndpoints));
+
+        Map<Long, Executor> executors = executorMapper.selectList(null).stream()
+                .collect(Collectors.toMap(Executor::getId, Function.identity()));
+
+        List<GraphNodeDto> executorNodes = new ArrayList<>();
+        relations.addAll(enrichExecutorTopology(
+                flows, pathsByFlow, stepsByPath, endpointIds, allEndpoints, executors, executorNodes));
+
+        List<GraphEdgeDto> edges = buildEdges(
+                flows, pathsByFlow, stepsByPath, allEndpoints, executors, assetByFlowId, upstreamByFlowId);
+
+        if (includeDerivationBridges) {
+            for (Long outputAssetId : scope) {
+                DataAsset outputAsset = assetsById.get(outputAssetId);
+                if (outputAsset == null) {
+                    continue;
+                }
+                List<Derivation> asOutput = derivationMapper.selectList(
+                        new LambdaQueryWrapper<Derivation>().eq(Derivation::getOutputAssetId, outputAssetId));
+                if (asOutput.isEmpty()) {
+                    continue;
+                }
+                boolean allInputsInScope = asOutput.stream().allMatch(derivation ->
+                        derivationInputMapper.selectList(
+                                        new LambdaQueryWrapper<DerivationInput>()
+                                                .eq(DerivationInput::getDerivationId, derivation.getId()))
+                                .stream()
+                                .allMatch(input -> scope.contains(input.getInputAssetId())));
+                if (!allInputsInScope) {
+                    continue;
+                }
+                edges.addAll(buildDerivationBridgeEdges(
+                        outputAsset,
+                        asOutput,
+                        flows,
+                        allEndpoints,
+                        executors,
+                        assetsById,
+                        endpointIds,
+                        executorNodes,
+                        relations));
+            }
+        }
+
+        relations.sort(Comparator.comparing(GraphRelationDto::id));
+
+        List<GraphGroupDto> groups = buildGroups(endpointIds, allEndpoints);
+        List<GraphNodeDto> nodes = buildNodes(endpointIds, allEndpoints, Map.of());
+        nodes.addAll(executorNodes);
+        List<GraphDerivationDto> derivations = buildDerivationsForAssets(scope, allEndpoints, executors, assetsById);
+
+        return new AssetGraphDto(
+                0L,
+                "技术全景",
+                "PANORAMA_TECH",
+                "MIXED",
+                groups,
+                nodes,
+                edges,
+                relations,
+                derivations,
+                includeDerivationBridges
+        );
+    }
+
+    private AssetGraphDto emptyTechnicalPanorama() {
+        return new AssetGraphDto(
+                0L,
+                "技术全景",
+                "PANORAMA_TECH",
+                "MIXED",
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                false
+        );
+    }
+
+    private Set<Long> resolveAssetScope(List<Long> assetIds, Set<Long> allAssetIds) {
+        if (assetIds == null || assetIds.isEmpty()) {
+            return new LinkedHashSet<>(allAssetIds);
+        }
+        return assetIds.stream()
+                .filter(allAssetIds::contains)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private Set<Long> collectEndpointIdsFromFlows(List<Flow> flows) {
+        Set<Long> endpointIds = new HashSet<>();
+        for (Flow flow : flows) {
+            endpointIds.add(flow.getSourceEndpointId());
+            endpointIds.add(flow.getTargetEndpointId());
+        }
+        return endpointIds;
+    }
+
+    private void addHostEndpointIds(Set<Long> endpointIds, Map<Long, List<FlowStep>> stepsByPath) {
+        for (List<FlowStep> steps : stepsByPath.values()) {
+            for (FlowStep step : steps) {
+                if (step.getHostId() != null) {
+                    endpointIds.add(step.getHostId());
+                }
+            }
+        }
+    }
+
+    private List<GraphDerivationDto> buildDerivationsForAssets(
+            Set<Long> assetIds,
+            Map<Long, Endpoint> allEndpoints,
+            Map<Long, Executor> executors,
+            Map<Long, DataAsset> assets) {
+        Set<Long> derivationIds = new LinkedHashSet<>();
+        for (Long assetId : assetIds) {
+            derivationMapper.selectList(
+                            new LambdaQueryWrapper<Derivation>().eq(Derivation::getOutputAssetId, assetId))
+                    .forEach(d -> derivationIds.add(d.getId()));
+            derivationInputMapper.selectList(
+                            new LambdaQueryWrapper<DerivationInput>().eq(DerivationInput::getInputAssetId, assetId))
+                    .forEach(input -> derivationIds.add(input.getDerivationId()));
+        }
+        if (derivationIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, Derivation> derivationMap = derivationMapper.selectList(
+                        new LambdaQueryWrapper<Derivation>().in(Derivation::getId, derivationIds))
+                .stream()
+                .collect(Collectors.toMap(Derivation::getId, Function.identity()));
+
+        Map<Long, List<DerivationInput>> inputsByDerivation = derivationInputMapper.selectList(null).stream()
+                .collect(Collectors.groupingBy(DerivationInput::getDerivationId));
+
+        return derivationMap.values().stream()
+                .sorted(Comparator.comparing(Derivation::getId))
+                .map(derivation -> toDerivationDto(derivation, inputsByDerivation, assets, allEndpoints, executors))
+                .toList();
     }
 
     private List<Flow> loadFlowsForAsset(Long assetId, boolean includeAuxiliary) {

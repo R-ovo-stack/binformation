@@ -1,33 +1,84 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { getPanoramaGraph } from '@/api/panorama'
+import { listAssets } from '@/api/asset'
+import { getPanoramaGraph, getTechnicalPanoramaGraph } from '@/api/panorama'
 import AppNav from '@/components/AppNav.vue'
+import EdgeDetailPanel from '@/components/EdgeDetailPanel.vue'
+import FlowGraphCanvas from '@/components/FlowGraphCanvas.vue'
 import PanoramaGraphCanvas from '@/components/PanoramaGraphCanvas.vue'
 import type { PanoramaEdge, PanoramaGraph } from '@/types/panorama'
 import { dataTypeLabel } from '@/types/panorama'
+import type { AssetGraph, DataAsset, GraphEdge } from '@/types/graph'
+import type { LayoutMode } from '@/utils/graphLayout'
 
 const router = useRouter()
+const activeTab = ref<'lineage' | 'technical'>('lineage')
 const loading = ref(false)
-const graph = ref<PanoramaGraph | null>(null)
+
+const lineageGraph = ref<PanoramaGraph | null>(null)
 const includeEndpointLinks = ref(true)
 const selectedAssetId = ref<number | null>(null)
-const selectedEdge = ref<PanoramaEdge | null>(null)
-const canvasRef = ref<InstanceType<typeof PanoramaGraphCanvas> | null>(null)
+const selectedLineageEdge = ref<PanoramaEdge | null>(null)
+const lineageCanvasRef = ref<InstanceType<typeof PanoramaGraphCanvas> | null>(null)
 
-async function load() {
+const technicalGraph = ref<AssetGraph | null>(null)
+const allAssets = ref<DataAsset[]>([])
+const selectedAssetIds = ref<number[]>([])
+const includeAuxiliary = ref(false)
+const includeDerivationBridges = ref(true)
+const layoutMode = ref<LayoutMode>('compact')
+const selectedFlowEdge = ref<GraphEdge | null>(null)
+const technicalCanvasRef = ref<InstanceType<typeof FlowGraphCanvas> | null>(null)
+
+const detailAssetId = computed(() => {
+  if (selectedFlowEdge.value?.fromAssetId) return selectedFlowEdge.value.fromAssetId
+  return null
+})
+
+async function loadLineage() {
   loading.value = true
   selectedAssetId.value = null
-  selectedEdge.value = null
+  selectedLineageEdge.value = null
   try {
-    graph.value = await getPanoramaGraph(includeEndpointLinks.value)
+    lineageGraph.value = await getPanoramaGraph(includeEndpointLinks.value)
   } catch (e) {
-    graph.value = null
-    ElMessage.error(e instanceof Error ? e.message : '加载全景图失败')
+    lineageGraph.value = null
+    ElMessage.error(e instanceof Error ? e.message : '加载血缘全景失败')
   } finally {
     loading.value = false
   }
+}
+
+async function loadTechnical() {
+  loading.value = true
+  selectedFlowEdge.value = null
+  try {
+    technicalGraph.value = await getTechnicalPanoramaGraph({
+      assetIds: selectedAssetIds.value.length ? selectedAssetIds.value : undefined,
+      includeAuxiliary: includeAuxiliary.value,
+      includeDerivationBridges: includeDerivationBridges.value,
+    })
+  } catch (e) {
+    technicalGraph.value = null
+    ElMessage.error(e instanceof Error ? e.message : '加载技术全景失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadAssets() {
+  try {
+    allAssets.value = await listAssets()
+  } catch {
+    allAssets.value = []
+  }
+}
+
+function loadActive() {
+  if (activeTab.value === 'lineage') void loadLineage()
+  else void loadTechnical()
 }
 
 function openAssetGraph(assetId: number) {
@@ -43,18 +94,26 @@ function openGuide() {
 }
 
 function zoomToFit() {
-  canvasRef.value?.zoomToFit()
+  if (activeTab.value === 'lineage') lineageCanvasRef.value?.zoomToFit()
+  else technicalCanvasRef.value?.zoomToFit()
 }
 
 function zoomIn() {
-  canvasRef.value?.zoomIn()
+  if (activeTab.value === 'lineage') lineageCanvasRef.value?.zoomIn()
+  else technicalCanvasRef.value?.zoomIn()
 }
 
 function zoomOut() {
-  canvasRef.value?.zoomOut()
+  if (activeTab.value === 'lineage') lineageCanvasRef.value?.zoomOut()
+  else technicalCanvasRef.value?.zoomOut()
 }
 
-onMounted(load)
+watch(activeTab, () => loadActive())
+
+onMounted(async () => {
+  await loadAssets()
+  await loadLineage()
+})
 </script>
 
 <template>
@@ -66,7 +125,7 @@ onMounted(load)
         <el-button link @click="router.push('/')">← 返回资产列表</el-button>
         <h1>资产全景图</h1>
         <p class="meta">
-          血缘视角：派生关系与跨资产落点衔接；点击资产卡片可下钻单资产成图
+          血缘视角看资产间关系；技术全景合并多资产落点级流向（与单资产成图一致）
         </p>
       </div>
       <div class="actions">
@@ -74,88 +133,127 @@ onMounted(load)
         <el-button @click="zoomOut">缩小</el-button>
         <el-button @click="zoomIn">放大</el-button>
         <el-button @click="zoomToFit">适配</el-button>
-        <el-button :loading="loading" @click="load">刷新</el-button>
+        <el-button :loading="loading" @click="loadActive">刷新</el-button>
       </div>
     </header>
 
-    <div class="toolbar card">
-      <el-switch v-model="includeEndpointLinks" active-text="含落点衔接" @change="load" />
-      <span class="tip" v-if="graph">
-        共 {{ graph.assetCount }} 个资产 · {{ graph.edgeCount }} 条跨资产关系
-      </span>
-      <span class="tip muted">无连线的资产显示在下方（孤立节点）</span>
-    </div>
+    <el-tabs v-model="activeTab" class="panorama-tabs">
+      <el-tab-pane label="血缘视角" name="lineage">
+        <div class="toolbar card">
+          <el-switch v-model="includeEndpointLinks" active-text="含落点衔接" @change="loadLineage" />
+          <span class="tip" v-if="lineageGraph">
+            共 {{ lineageGraph.assetCount }} 个资产 · {{ lineageGraph.edgeCount }} 条跨资产关系
+          </span>
+        </div>
 
-    <div class="workspace">
-      <PanoramaGraphCanvas
-        ref="canvasRef"
-        class="canvas-panel"
-        :graph="graph"
-        :selected-asset-id="selectedAssetId"
-        @select-asset="selectedAssetId = $event; selectedEdge = null"
-        @select-edge="selectedEdge = $event; selectedAssetId = null"
-      />
+        <div class="workspace">
+          <PanoramaGraphCanvas
+            ref="lineageCanvasRef"
+            class="canvas-panel"
+            :graph="lineageGraph"
+            :selected-asset-id="selectedAssetId"
+            @select-asset="selectedAssetId = $event; selectedLineageEdge = null"
+            @select-edge="selectedLineageEdge = $event; selectedAssetId = null"
+          />
 
-      <aside class="side card">
-        <template v-if="selectedAssetId && graph">
-          <h2>资产</h2>
-          <template v-for="n in graph.nodes" :key="n.assetId">
-            <dl v-if="n.assetId === selectedAssetId" class="detail">
-              <div><dt>名称</dt><dd>{{ n.name }}</dd></div>
-              <div><dt>编码</dt><dd>{{ n.code }}</dd></div>
-              <div><dt>类型</dt><dd>{{ dataTypeLabel(n.dataType) }}</dd></div>
-              <div><dt>状态</dt><dd>{{ n.status }}</dd></div>
-              <div><dt>主流向</dt><dd>{{ n.primaryFlowCount }} 条</dd></div>
-              <div v-if="n.derivationInCount">
-                <dt>作为派生输入</dt><dd>{{ n.derivationInCount }} 次</dd>
+          <aside class="side card">
+            <template v-if="selectedAssetId && lineageGraph">
+              <h2>资产</h2>
+              <template v-for="n in lineageGraph.nodes" :key="n.assetId">
+                <dl v-if="n.assetId === selectedAssetId" class="detail">
+                  <div><dt>名称</dt><dd>{{ n.name }}</dd></div>
+                  <div><dt>编码</dt><dd>{{ n.code }}</dd></div>
+                  <div><dt>类型</dt><dd>{{ dataTypeLabel(n.dataType) }}</dd></div>
+                  <div><dt>主流向</dt><dd>{{ n.primaryFlowCount }} 条</dd></div>
+                </dl>
+              </template>
+              <div class="side-actions">
+                <el-button type="primary" @click="openAssetGraph(selectedAssetId)">一键成图</el-button>
+                <el-button @click="openAssetFlows(selectedAssetId)">管理流向</el-button>
               </div>
-              <div v-if="n.derivationOutCount">
-                <dt>派生输出</dt><dd>{{ n.derivationOutCount }} 条定义</dd>
+            </template>
+
+            <template v-else-if="selectedLineageEdge">
+              <h2>跨资产关系</h2>
+              <dl class="detail">
+                <div>
+                  <dt>类型</dt>
+                  <dd>{{ selectedLineageEdge.type === 'DERIVE' ? '派生' : '落点衔接' }}</dd>
+                </div>
+                <div><dt>说明</dt><dd>{{ selectedLineageEdge.label }}</dd></div>
+              </dl>
+              <div class="side-actions">
+                <el-button @click="openAssetGraph(selectedLineageEdge.sourceAssetId)">上游成图</el-button>
+                <el-button type="primary" @click="openAssetGraph(selectedLineageEdge.targetAssetId)">
+                  下游成图
+                </el-button>
               </div>
-            </dl>
-          </template>
-          <div class="side-actions">
-            <el-button type="primary" @click="openAssetGraph(selectedAssetId)">一键成图</el-button>
-            <el-button @click="openAssetFlows(selectedAssetId)">管理流向</el-button>
-          </div>
-        </template>
+            </template>
 
-        <template v-else-if="selectedEdge">
-          <h2>跨资产关系</h2>
-          <dl class="detail">
-            <div>
-              <dt>类型</dt>
-              <dd>{{ selectedEdge.type === 'DERIVE' ? '派生输入' : '共享落点衔接' }}</dd>
-            </div>
-            <div><dt>说明</dt><dd>{{ selectedEdge.label }}</dd></div>
-            <div v-if="selectedEdge.endpointLabel">
-              <dt>共享落点</dt><dd>{{ selectedEdge.endpointLabel }}</dd>
-            </div>
-            <div>
-              <dt>上游资产 ID</dt><dd>{{ selectedEdge.sourceAssetId }}</dd>
-            </div>
-            <div>
-              <dt>下游资产 ID</dt><dd>{{ selectedEdge.targetAssetId }}</dd>
-            </div>
-          </dl>
-          <div class="side-actions">
-            <el-button @click="openAssetGraph(selectedEdge.sourceAssetId)">上游成图</el-button>
-            <el-button type="primary" @click="openAssetGraph(selectedEdge.targetAssetId)">
-              下游成图
-            </el-button>
-          </div>
-        </template>
+            <template v-else>
+              <p class="help">点击资产卡片或连线查看详情；无连线的资产在画布下方。</p>
+            </template>
+          </aside>
+        </div>
+      </el-tab-pane>
 
-        <template v-else>
-          <h2>说明</h2>
-          <ul class="help">
-            <li><strong>派生</strong>：多输入资产加工为输出资产（如实测+遥信→拼接数据 D）</li>
-            <li><strong>落点衔接</strong>：上游资产某主流向的目标落点 = 下游资产某主流向的源落点</li>
-            <li>点击资产卡片查看详情并下钻；点击连线查看跨资产关系</li>
-          </ul>
-        </template>
-      </aside>
-    </div>
+      <el-tab-pane label="技术全景" name="technical">
+        <div class="toolbar card technical-toolbar">
+          <el-select
+            v-model="selectedAssetIds"
+            multiple
+            filterable
+            collapse-tags
+            collapse-tags-tooltip
+            clearable
+            placeholder="全部资产（可多选筛选）"
+            class="asset-filter"
+            @change="loadTechnical"
+          >
+            <el-option
+              v-for="a in allAssets"
+              :key="a.id"
+              :label="`${a.name} (${a.code})`"
+              :value="a.id"
+            />
+          </el-select>
+          <el-switch v-model="includeAuxiliary" active-text="含辅助" @change="loadTechnical" />
+          <el-switch
+            v-model="includeDerivationBridges"
+            active-text="含派生桥接"
+            @change="loadTechnical"
+          />
+          <el-radio-group v-model="layoutMode" size="small">
+            <el-radio-button label="compact">简洁</el-radio-button>
+            <el-radio-button label="full">完整</el-radio-button>
+          </el-radio-group>
+          <span class="tip" v-if="technicalGraph">
+            节点 {{ technicalGraph.nodes.length }} · 流向 {{ technicalGraph.edges.length }}
+          </span>
+        </div>
+
+        <p class="mode-tip">
+          合并所选资产的全部主流向；边标签含所属资产名。未选资产时默认包含全部。
+        </p>
+
+        <div class="workspace">
+          <FlowGraphCanvas
+            ref="technicalCanvasRef"
+            :key="`${layoutMode}-${selectedAssetIds.join(',')}-${includeAuxiliary}`"
+            class="canvas-panel"
+            :graph="technicalGraph"
+            :layout-mode="layoutMode"
+            @select-edge="selectedFlowEdge = $event"
+          />
+
+          <EdgeDetailPanel
+            class="side card"
+            :edge="selectedFlowEdge"
+            :asset-id="detailAssetId"
+          />
+        </div>
+      </el-tab-pane>
+    </el-tabs>
   </div>
 </template>
 
@@ -184,13 +282,17 @@ h1 {
   margin: 4px 0 0;
   color: #64748b;
   font-size: 13px;
-  max-width: 560px;
+  max-width: 640px;
 }
 
 .actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.panorama-tabs :deep(.el-tabs__header) {
+  margin-bottom: 12px;
 }
 
 .card {
@@ -202,10 +304,15 @@ h1 {
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   padding: 10px 14px;
   margin-bottom: 12px;
   flex-wrap: wrap;
+}
+
+.technical-toolbar .asset-filter {
+  min-width: 240px;
+  max-width: 420px;
 }
 
 .tip {
@@ -213,9 +320,10 @@ h1 {
   color: #334155;
 }
 
-.tip.muted {
-  color: #94a3b8;
+.mode-tip {
+  margin: 0 0 12px;
   font-size: 12px;
+  color: #94a3b8;
 }
 
 .workspace {
@@ -232,6 +340,7 @@ h1 {
 .side {
   padding: 14px;
   overflow: auto;
+  min-height: 560px;
 }
 
 .side h2 {
@@ -265,14 +374,9 @@ h1 {
 
 .help {
   margin: 0;
-  padding-left: 1.2em;
   font-size: 13px;
   color: #64748b;
-  line-height: 1.7;
-}
-
-.help strong {
-  color: #334155;
+  line-height: 1.6;
 }
 
 @media (max-width: 960px) {
