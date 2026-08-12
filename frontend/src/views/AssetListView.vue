@@ -51,6 +51,7 @@ onMounted(load)
         <p class="sub">维护数据资产、落点与流向，或一键生成流向图。</p>
       </div>
       <div class="hero-actions">
+        <el-button @click="router.push('/panorama')">资产全景图</el-button>
         <el-button type="primary" @click="openCreate">新建资产</el-button>
         <el-button :loading="loading" @click="load">刷新</el-button>
       </div>

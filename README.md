@@ -39,6 +39,7 @@ npm run dev
 |---|---|---|
 | GET | `/api/assets` | 资产列表 |
 | GET | `/api/assets/{id}` | 资产详情 |
+| GET | `/api/graph/panorama` | 资产全景图（血缘：派生 + 落点衔接） |
 | GET | `/api/assets/{id}/graph` | 一键成图 GraphDTO |
 
 ```bash

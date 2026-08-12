@@ -12,11 +12,13 @@ import ExecutorEditView from '@/views/ExecutorEditView.vue'
 import DerivationListView from '@/views/DerivationListView.vue'
 import DerivationEditView from '@/views/DerivationEditView.vue'
 import FlowEditingGuideView from '@/views/FlowEditingGuideView.vue'
+import PanoramaGraphView from '@/views/PanoramaGraphView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', name: 'assets', component: AssetListView },
+    { path: '/panorama', name: 'panorama', component: PanoramaGraphView },
     { path: '/assets/new', name: 'asset-create', component: AssetEditView },
     { path: '/assets/:id/edit', name: 'asset-edit', component: AssetEditView, props: true },
     { path: '/assets/:id/flows', name: 'asset-flows', component: AssetFlowListView, props: true },
