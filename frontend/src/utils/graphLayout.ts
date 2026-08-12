@@ -48,6 +48,139 @@ function clusterMetrics(topicCount: number, brokerCount: number) {
   return { width, height }
 }
 
+type NestMaps = {
+  parentOf: Map<string, string>
+  nestRole: Map<string, 'topic' | 'broker'>
+  leafSize: Map<string, { width: number; height: number }>
+  containerMeta: Map<string, { width: number; height: number; x: number; y: number }>
+}
+
+/**
+ * 根据 CONTAINS / BROKER_OF 把主题（及 Broker）收进 Kafka/RocketMQ 等集群卡片。
+ * 会就地更新 positions，并返回嵌套元数据。
+ */
+function applyClusterContainment(
+  nodes: GraphNode[],
+  relations: GraphRelation[],
+  positions: Map<string, { x: number; y: number }>,
+): NestMaps {
+  const map = new Map(nodes.map((n) => [n.id, n]))
+  const parentOf = new Map<string, string>()
+  const childrenOf = new Map<string, string[]>()
+  const nestRole = new Map<string, 'topic' | 'broker'>()
+  const leafSize = new Map<string, { width: number; height: number }>()
+  const containerMeta = new Map<string, { width: number; height: number; x: number; y: number }>()
+
+  relations
+    .filter((r) => r.type === 'CONTAINS')
+    .forEach((r) => {
+      if (!map.has(r.target)) return
+      parentOf.set(r.target, r.source)
+      nestRole.set(r.target, 'topic')
+      if (!childrenOf.has(r.source)) childrenOf.set(r.source, [])
+      if (!childrenOf.get(r.source)!.includes(r.target)) {
+        childrenOf.get(r.source)!.push(r.target)
+      }
+    })
+
+  const brokersByKafka = new Map<string, string[]>()
+  relations
+    .filter((r) => r.type === 'BROKER_OF')
+    .forEach((r) => {
+      if (!map.has(r.target)) return
+      if (!brokersByKafka.has(r.source)) brokersByKafka.set(r.source, [])
+      brokersByKafka.get(r.source)!.push(r.target)
+    })
+
+  childrenOf.forEach((topicIds) => {
+    topicIds.forEach((tid, i) => {
+      if (positions.has(tid)) return
+      const sibling = topicIds.map((id) => positions.get(id)).find(Boolean)
+      const parentPos = positions.get(parentOf.get(tid) || '')
+      positions.set(tid, {
+        x: (sibling?.x ?? parentPos?.x ?? 140) + i * (TOPIC_INNER_W + INNER_GAP),
+        y: sibling?.y ?? parentPos?.y ?? 160,
+      })
+    })
+  })
+
+  childrenOf.forEach((topicIds, kafkaId) => {
+    if (!map.has(kafkaId)) return
+    const brokers = (brokersByKafka.get(kafkaId) || []).filter((id) => map.has(id))
+    const metrics = clusterMetrics(topicIds.length, brokers.length)
+
+    const anchors = topicIds.map((id) => positions.get(id)!).filter(Boolean)
+    if (!anchors.length) return
+    const anchorX = anchors.reduce((s, p) => s + p.x, 0) / anchors.length
+    const anchorY = anchors.reduce((s, p) => s + p.y, 0) / anchors.length
+
+    const contentCenterOffsetY =
+      -metrics.height / 2 + CLUSTER_HEADER + CLUSTER_PAD + TOPIC_INNER_H / 2
+    const cardCx = anchorX
+    const cardCy = anchorY - contentCenterOffsetY
+
+    positions.set(kafkaId, { x: cardCx, y: cardCy })
+    containerMeta.set(kafkaId, {
+      width: metrics.width,
+      height: metrics.height,
+      x: cardCx,
+      y: cardCy,
+    })
+
+    const topicsSpan =
+      topicIds.length * TOPIC_INNER_W + Math.max(0, topicIds.length - 1) * INNER_GAP
+    const topicLeft = cardCx - topicsSpan / 2
+    topicIds.forEach((tid, i) => {
+      const tx = topicLeft + TOPIC_INNER_W / 2 + i * (TOPIC_INNER_W + INNER_GAP)
+      const ty = cardCy + contentCenterOffsetY
+      positions.set(tid, { x: tx, y: ty })
+      parentOf.set(tid, kafkaId)
+      nestRole.set(tid, 'topic')
+      leafSize.set(tid, { width: TOPIC_INNER_W, height: TOPIC_INNER_H })
+    })
+
+    if (brokers.length) {
+      const brokersSpan =
+        brokers.length * BROKER_CHIP_W + Math.max(0, brokers.length - 1) * INNER_GAP
+      const brokerLeft = cardCx - brokersSpan / 2
+      const brokerCy = cardCy + metrics.height / 2 - CLUSTER_PAD - BROKER_CHIP_H / 2
+      brokers.forEach((bid, i) => {
+        positions.set(bid, {
+          x: brokerLeft + BROKER_CHIP_W / 2 + i * (BROKER_CHIP_W + INNER_GAP),
+          y: brokerCy,
+        })
+        parentOf.set(bid, kafkaId)
+        nestRole.set(bid, 'broker')
+        leafSize.set(bid, { width: BROKER_CHIP_W, height: BROKER_CHIP_H })
+      })
+    }
+  })
+
+  return { parentOf, nestRole, leafSize, containerMeta }
+}
+
+function toPositionedNodes(
+  nodes: GraphNode[],
+  positions: Map<string, { x: number; y: number }>,
+  nest: NestMaps,
+): PositionedNode[] {
+  return nodes.map((n) => {
+    const p = positions.get(n.id) ?? { x: 100, y: 100 }
+    const meta = nest.containerMeta.get(n.id)
+    const size = nest.leafSize.get(n.id)
+    return {
+      ...n,
+      x: p.x,
+      y: p.y,
+      width: meta?.width ?? size?.width ?? NODE_WIDTH,
+      height: meta?.height ?? size?.height ?? NODE_HEIGHT,
+      parentNodeId: nest.parentOf.get(n.id) || null,
+      isContainer: !!meta,
+      nestRole: nest.nestRole.get(n.id) || null,
+    }
+  })
+}
+
 /** 画布上实际绘制的边（把流向展开成 源→程序→目标） */
 export interface DisplayEdge {
   id: string
@@ -280,241 +413,140 @@ function barycenter(
  * 1) 流向按步骤展开后拓扑分层（左→右）
  * 2) 安全区做水平泳道（上→下）
  * 3) 层内用邻接重心减少交叉
- * 4) Kafka/RocketMQ CONTAINS 画成大框套小框；完整模式再收 Broker；部署主机作卫星
+ * 4) Kafka/RocketMQ CONTAINS 画成大框套小框；部署主机作卫星
+ * 即使有保存坐标，也仍应用第 4 步嵌套，避免主题与集群拆开显示。
  */
 export function layoutGraphSmart(graph: AssetGraph, mode: LayoutMode = 'compact'): PositionedNode[] {
   const view = filterGraphForMode(graph, mode)
   if (view.nodes.length === 0) return []
 
-  if (view.nodes.some((n) => n.layoutX != null && n.layoutY != null)) {
-    return resolveOverlaps(
-      view.nodes.map((n, i) => ({
-        ...n,
+  const allRelations = view.relations || []
+  const positions = new Map<string, { x: number; y: number }>()
+
+  const hasSavedLayout = view.nodes.some((n) => n.layoutX != null && n.layoutY != null)
+  if (hasSavedLayout) {
+    view.nodes.forEach((n, i) => {
+      positions.set(n.id, {
         x: n.layoutX ?? 100 + (i % 4) * COL_GAP,
         y: n.layoutY ?? 100 + Math.floor(i / 4) * ROW_IN_LANE,
-        width: NODE_WIDTH,
-        height: NODE_HEIGHT,
-      })),
-    )
-  }
-
-  const map = nodeById(view)
-  const displayEdges = expandDisplayEdges(view)
-  const mainIds = new Set<string>()
-  displayEdges.forEach((e) => {
-    mainIds.add(e.source)
-    mainIds.add(e.target)
-  })
-
-  // 主链：落点+程序；HOST / Kafka|RocketMQ 容器不当脊柱点（容器由主题锚点生成）
-  const isSatellite = (n: GraphNode) => {
-    if (n.kind === 'EXECUTOR') return false
-    if (n.type === 'HOST') return true
-    if (n.type === 'KAFKA' || n.type === 'ROCKETMQ' || n.type === 'OBJECT_STORAGE') return true
-    return false
-  }
-
-  const spineIds = [...mainIds].filter((id) => {
-    const n = map.get(id)
-    return n && !isSatellite(n)
-  })
-
-  const dagEdges = displayEdges
-    .filter((e) => spineIds.includes(e.source) && spineIds.includes(e.target))
-    .map((e) => ({ source: e.source, target: e.target }))
-
-  const layers = assignLayers(spineIds, dagEdges)
-  const zoneOrder = inferZoneOrder(view)
-  const zoneIndex = (n: GraphNode) => {
-    if (!n.groupId) return zoneOrder.length
-    const idx = zoneOrder.indexOf(n.groupId)
-    return idx >= 0 ? idx : zoneOrder.length
-  }
-
-  const byLayer = new Map<number, string[]>()
-  spineIds.forEach((id) => {
-    const l = layers.get(id) || 0
-    if (!byLayer.has(l)) byLayer.set(l, [])
-    byLayer.get(l)!.push(id)
-  })
-
-  const positions = new Map<string, { x: number; y: number }>()
-  const sortedLayers = [...byLayer.keys()].sort((a, b) => a - b)
-  const roughY = new Map<string, number>()
-
-  spineIds.forEach((id) => {
-    const n = map.get(id)!
-    roughY.set(id, 160 + zoneIndex(n) * LANE_GAP)
-  })
-
-  sortedLayers.forEach((layerNo) => {
-    const ids = byLayer.get(layerNo)!
-    ids.sort((a, b) => {
-      const na = map.get(a)!
-      const nb = map.get(b)!
-      const za = zoneIndex(na)
-      const zb = zoneIndex(nb)
-      if (za !== zb) return za - zb
-      const ba = barycenter(a, dagEdges, roughY)
-      const bb = barycenter(b, dagEdges, roughY)
-      if (ba !== bb) return ba - bb
-      const wa = na.kind === 'EXECUTOR' ? 0 : 1
-      const wb = nb.kind === 'EXECUTOR' ? 0 : 1
-      if (wa !== wb) return wa - wb
-      return (na.label || '').localeCompare(nb.label || '', 'zh')
-    })
-
-    const usedInLane = new Map<number, number>()
-    const x = 140 + layerNo * COL_GAP
-    ids.forEach((id) => {
-      const node = map.get(id)!
-      const lane = zoneIndex(node)
-      const slot = usedInLane.get(lane) || 0
-      usedInLane.set(lane, slot + 1)
-      const y = 160 + lane * LANE_GAP + slot * ROW_IN_LANE
-      positions.set(id, { x, y })
-      roughY.set(id, y)
-    })
-  })
-
-  // 用 view 中保留的 CONTAINS/BROKER_OF；完整模式输入未过滤时本身含全部关系
-  const allRelations = view.relations || []
-  const parentOf = new Map<string, string>()
-  const childrenOf = new Map<string, string[]>()
-  const containerMeta = new Map<string, { width: number; height: number; x: number; y: number }>()
-  const nestRole = new Map<string, 'topic' | 'broker'>()
-  const leafSize = new Map<string, { width: number; height: number }>()
-
-  allRelations
-    .filter((r) => r.type === 'CONTAINS')
-    .forEach((r) => {
-      if (!positions.has(r.target) && !map.has(r.target)) return
-      parentOf.set(r.target, r.source)
-      nestRole.set(r.target, 'topic')
-      if (!childrenOf.has(r.source)) childrenOf.set(r.source, [])
-      if (!childrenOf.get(r.source)!.includes(r.target)) {
-        childrenOf.get(r.source)!.push(r.target)
-      }
-    })
-
-  const brokersByKafka = new Map<string, string[]>()
-  allRelations
-    .filter((r) => r.type === 'BROKER_OF')
-    .forEach((r) => {
-      if (!map.has(r.target)) return
-      if (!brokersByKafka.has(r.source)) brokersByKafka.set(r.source, [])
-      brokersByKafka.get(r.source)!.push(r.target)
-    })
-
-  // 先保证每个被包含主题有坐标（若仅父在图中）
-  childrenOf.forEach((topicIds) => {
-    topicIds.forEach((tid, i) => {
-      if (positions.has(tid)) return
-      const sibling = topicIds.map((id) => positions.get(id)).find(Boolean)
-      positions.set(tid, {
-        x: (sibling?.x ?? 140) + i * (TOPIC_INNER_W + INNER_GAP),
-        y: sibling?.y ?? 160,
       })
     })
-  })
-
-  childrenOf.forEach((topicIds, kafkaId) => {
-    // 完整模式收 Broker；简洁模式若 broker 节点已在图中也一并收入卡片
-    const brokers = (brokersByKafka.get(kafkaId) || []).filter((id) => map.has(id))
-    const metrics = clusterMetrics(topicIds.length, brokers.length)
-
-    // 以主题脊柱位置为锚：卡片中心对齐主题列，主题落在标题下的内容区
-    const anchors = topicIds.map((id) => positions.get(id)!).filter(Boolean)
-    if (!anchors.length) return
-    const anchorX = anchors.reduce((s, p) => s + p.x, 0) / anchors.length
-    const anchorY = anchors.reduce((s, p) => s + p.y, 0) / anchors.length
-
-    // 内容区中心（主题行）相对卡片中心的偏移
-    const contentCenterOffsetY =
-      -metrics.height / 2 + CLUSTER_HEADER + CLUSTER_PAD + TOPIC_INNER_H / 2
-    const cardCx = anchorX
-    const cardCy = anchorY - contentCenterOffsetY
-
-    positions.set(kafkaId, { x: cardCx, y: cardCy })
-    containerMeta.set(kafkaId, {
-      width: metrics.width,
-      height: metrics.height,
-      x: cardCx,
-      y: cardCy,
+  } else {
+    const map = nodeById(view)
+    const displayEdges = expandDisplayEdges(view)
+    const mainIds = new Set<string>()
+    displayEdges.forEach((e) => {
+      mainIds.add(e.source)
+      mainIds.add(e.target)
     })
 
-    // 主题横排，整体水平居中于卡片
-    const topicsSpan =
-      topicIds.length * TOPIC_INNER_W + Math.max(0, topicIds.length - 1) * INNER_GAP
-    const topicLeft = cardCx - topicsSpan / 2
-    topicIds.forEach((tid, i) => {
-      const tx = topicLeft + TOPIC_INNER_W / 2 + i * (TOPIC_INNER_W + INNER_GAP)
-      const ty = cardCy + contentCenterOffsetY
-      positions.set(tid, { x: tx, y: ty })
-      parentOf.set(tid, kafkaId)
-      nestRole.set(tid, 'topic')
-      leafSize.set(tid, { width: TOPIC_INNER_W, height: TOPIC_INNER_H })
-    })
-
-    // Broker 芯片收进卡片底栏（视觉归属集群，不再甩在外面）
-    if (brokers.length) {
-      const brokersSpan =
-        brokers.length * BROKER_CHIP_W + Math.max(0, brokers.length - 1) * INNER_GAP
-      const brokerLeft = cardCx - brokersSpan / 2
-      const brokerCy = cardCy + metrics.height / 2 - CLUSTER_PAD - BROKER_CHIP_H / 2
-      brokers.forEach((bid, i) => {
-        positions.set(bid, {
-          x: brokerLeft + BROKER_CHIP_W / 2 + i * (BROKER_CHIP_W + INNER_GAP),
-          y: brokerCy,
-        })
-        parentOf.set(bid, kafkaId)
-        nestRole.set(bid, 'broker')
-        leafSize.set(bid, { width: BROKER_CHIP_W, height: BROKER_CHIP_H })
-      })
+    // 主链：落点+程序；HOST / Kafka|RocketMQ 容器不当脊柱点（容器由主题锚点生成）
+    const isSatellite = (n: GraphNode) => {
+      if (n.kind === 'EXECUTOR') return false
+      if (n.type === 'HOST') return true
+      if (n.type === 'KAFKA' || n.type === 'ROCKETMQ' || n.type === 'OBJECT_STORAGE') return true
+      return false
     }
-  })
+
+    const spineIds = [...mainIds].filter((id) => {
+      const n = map.get(id)
+      return n && !isSatellite(n)
+    })
+
+    const dagEdges = displayEdges
+      .filter((e) => spineIds.includes(e.source) && spineIds.includes(e.target))
+      .map((e) => ({ source: e.source, target: e.target }))
+
+    const layers = assignLayers(spineIds, dagEdges)
+    const zoneOrder = inferZoneOrder(view)
+    const zoneIndex = (n: GraphNode) => {
+      if (!n.groupId) return zoneOrder.length
+      const idx = zoneOrder.indexOf(n.groupId)
+      return idx >= 0 ? idx : zoneOrder.length
+    }
+
+    const byLayer = new Map<number, string[]>()
+    spineIds.forEach((id) => {
+      const l = layers.get(id) || 0
+      if (!byLayer.has(l)) byLayer.set(l, [])
+      byLayer.get(l)!.push(id)
+    })
+
+    const sortedLayers = [...byLayer.keys()].sort((a, b) => a - b)
+    const roughY = new Map<string, number>()
+
+    spineIds.forEach((id) => {
+      const n = map.get(id)!
+      roughY.set(id, 160 + zoneIndex(n) * LANE_GAP)
+    })
+
+    sortedLayers.forEach((layerNo) => {
+      const ids = byLayer.get(layerNo)!
+      ids.sort((a, b) => {
+        const na = map.get(a)!
+        const nb = map.get(b)!
+        const za = zoneIndex(na)
+        const zb = zoneIndex(nb)
+        if (za !== zb) return za - zb
+        const ba = barycenter(a, dagEdges, roughY)
+        const bb = barycenter(b, dagEdges, roughY)
+        if (ba !== bb) return ba - bb
+        const wa = na.kind === 'EXECUTOR' ? 0 : 1
+        const wb = nb.kind === 'EXECUTOR' ? 0 : 1
+        if (wa !== wb) return wa - wb
+        return (na.label || '').localeCompare(nb.label || '', 'zh')
+      })
+
+      const usedInLane = new Map<number, number>()
+      const x = 140 + layerNo * COL_GAP
+      ids.forEach((id) => {
+        const node = map.get(id)!
+        const lane = zoneIndex(node)
+        const slot = usedInLane.get(lane) || 0
+        usedInLane.set(lane, slot + 1)
+        const y = 160 + lane * LANE_GAP + slot * ROW_IN_LANE
+        positions.set(id, { x, y })
+        roughY.set(id, y)
+      })
+    })
+
+    let orphanIndex = 0
+    view.nodes.forEach((n) => {
+      if (positions.has(n.id)) return
+      positions.set(n.id, {
+        x: 140 + (sortedLayers.length + Math.floor(orphanIndex / 3)) * COL_GAP,
+        y: 160 + (orphanIndex % 3) * ROW_IN_LANE,
+      })
+      orphanIndex++
+    })
+  }
+
+  const nest = applyClusterContainment(view.nodes, allRelations, positions)
 
   allRelations
     .filter((r) => r.type === 'RUNS_ON')
     .forEach((r) => {
       const ep = positions.get(r.source)
       if (!ep || positions.has(r.target)) return
-      // 若主机已被收进 Kafka 卡片，不再重复挂到程序下
-      if (parentOf.has(r.target)) return
+      if (nest.parentOf.has(r.target)) return
       positions.set(r.target, {
         x: ep.x,
         y: ep.y + SAT_DY,
       })
     })
 
+  // 补齐仍无坐标的节点（例如仅作部署主机、尚未被 RUNS_ON 挂上）
   let orphanIndex = 0
   view.nodes.forEach((n) => {
     if (positions.has(n.id)) return
     positions.set(n.id, {
-      x: 140 + (sortedLayers.length + Math.floor(orphanIndex / 3)) * COL_GAP,
+      x: 140 + Math.floor(orphanIndex / 3) * COL_GAP,
       y: 160 + (orphanIndex % 3) * ROW_IN_LANE,
     })
     orphanIndex++
   })
 
-  const positioned: PositionedNode[] = view.nodes.map((n) => {
-    const p = positions.get(n.id)!
-    const meta = containerMeta.get(n.id)
-    const size = leafSize.get(n.id)
-    const parentNodeId = parentOf.get(n.id) || null
-    return {
-      ...n,
-      x: p.x,
-      y: p.y,
-      width: meta?.width ?? size?.width ?? NODE_WIDTH,
-      height: meta?.height ?? size?.height ?? NODE_HEIGHT,
-      parentNodeId,
-      isContainer: !!meta,
-      nestRole: nestRole.get(n.id) || null,
-    }
-  })
-
-  return resolveOverlaps(positioned, parentOf)
+  return resolveOverlaps(toPositionedNodes(view.nodes, positions, nest), nest.parentOf)
 }
 
 function nodeHalfSize(n: PositionedNode): { hw: number; hh: number } {

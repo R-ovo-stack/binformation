@@ -145,7 +145,37 @@ export function buildBoardAssetGraph(params: {
     })
   }
 
+  function addContains(parentId: number, childId: number, label = '包含') {
+    const relId = `rel-contains-${parentId}-${childId}`
+    if (relationIds.has(relId)) return
+    relationIds.add(relId)
+    relations.push({
+      id: relId,
+      source: epNodeId(parentId),
+      target: epNodeId(childId),
+      type: 'CONTAINS',
+      label,
+    })
+  }
+
   canvasEndpointIds.forEach((endpointId) => ensureEndpointNode(endpointId))
+
+  // 补齐主题/目录所属集群，并建立 CONTAINS，便于成图嵌套
+  const topicLike = new Set(['KAFKA_TOPIC', 'ROCKETMQ_TOPIC', 'OBJECT_BUCKET', 'OBJECT_PREFIX', 'DIRECTORY'])
+  canvasEndpointIds.forEach((endpointId) => {
+    const ep = epById.get(endpointId)
+    if (!ep?.parentId || !topicLike.has(ep.type)) return
+    const parent = epById.get(ep.parentId)
+    if (!parent) return
+    ensureEndpointNode(parent.id)
+    const label =
+      ep.type === 'KAFKA_TOPIC' || ep.type === 'ROCKETMQ_TOPIC'
+        ? '包含主题'
+        : ep.type === 'DIRECTORY'
+          ? '包含目录'
+          : '包含'
+    addContains(parent.id, ep.id, label)
+  })
 
   const edges: GraphEdge[] = boardEdges.map((edge) => {
     const detail = resolveFlowDetail(edge, flowDetailsById, draft)
