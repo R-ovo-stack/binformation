@@ -1,12 +1,18 @@
 package com.binformation.ledger.controller;
 
 import com.binformation.ledger.dto.endpoint.EndpointDetailDto;
+import com.binformation.ledger.dto.endpoint.EndpointImportResultDto;
 import com.binformation.ledger.dto.endpoint.EndpointSaveRequest;
 import com.binformation.ledger.dto.flow.EndpointOptionDto;
+import com.binformation.ledger.exception.BadRequestException;
+import com.binformation.ledger.service.EndpointCsvImportService;
 import com.binformation.ledger.service.EndpointService;
 import com.binformation.ledger.support.EndpointHierarchy;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -17,7 +23,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,9 +36,13 @@ import java.util.Set;
 public class EndpointController {
 
     private final EndpointService endpointService;
+    private final EndpointCsvImportService endpointCsvImportService;
 
-    public EndpointController(EndpointService endpointService) {
+    public EndpointController(
+            EndpointService endpointService,
+            EndpointCsvImportService endpointCsvImportService) {
         this.endpointService = endpointService;
+        this.endpointCsvImportService = endpointCsvImportService;
     }
 
     /** 管理列表（含安全区） */
@@ -75,6 +87,27 @@ public class EndpointController {
             }
         }
         return map;
+    }
+
+    /** 下载落点 CSV 导入模板 */
+    @GetMapping("/import/template")
+    public ResponseEntity<byte[]> downloadImportTemplate() {
+        byte[] body = endpointCsvImportService.buildTemplateCsv();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"endpoint-import-template.csv\"")
+                .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                .body(body);
+    }
+
+    /** 从 CSV 批量导入落点（按 parentPath 解析层级） */
+    @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public EndpointImportResultDto importEndpoints(@RequestParam("file") MultipartFile file)
+            throws IOException {
+        if (file.isEmpty()) {
+            throw new BadRequestException("请上传 CSV 文件");
+        }
+        return endpointCsvImportService.importCsv(file.getBytes());
     }
 
     @GetMapping("/{id}")

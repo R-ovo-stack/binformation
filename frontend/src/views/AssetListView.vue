@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox, type UploadRawFile } from 'element-plus'
 import { listAssets } from '@/api/asset'
 import { downloadFullLedgerExport } from '@/api/export'
+import { downloadEndpointImportTemplate, importEndpointsFromCsv } from '@/api/endpoint'
+import type { EndpointImportResult } from '@/types/endpointImport'
 import type { DataAsset } from '@/types/graph'
 import { dataTypeLabel, statusLabel } from '@/types/asset'
 import AppNav from '@/components/AppNav.vue'
@@ -12,6 +14,8 @@ const router = useRouter()
 const loading = ref(false)
 const exportingJson = ref(false)
 const exportingZip = ref(false)
+const downloadingTemplate = ref(false)
+const importingEndpoints = ref(false)
 const assets = ref<DataAsset[]>([])
 
 async function load() {
@@ -54,6 +58,54 @@ async function exportLedger(format: 'json' | 'zip') {
   }
 }
 
+async function downloadTemplate() {
+  downloadingTemplate.value = true
+  try {
+    await downloadEndpointImportTemplate()
+    ElMessage.success('落点导入模板已开始下载')
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '模板下载失败')
+  } finally {
+    downloadingTemplate.value = false
+  }
+}
+
+function formatImportSummary(result: EndpointImportResult): string {
+  const lines = [
+    `共 ${result.totalRows} 行，成功 ${result.created} 条，跳过 ${result.skipped} 条。`,
+  ]
+  if (result.errors.length > 0) {
+    lines.push('', '明细：')
+    for (const err of result.errors.slice(0, 8)) {
+      lines.push(`第 ${err.row} 行「${err.name || '-'}」：${err.message}`)
+    }
+    if (result.errors.length > 8) {
+      lines.push(`… 另有 ${result.errors.length - 8} 条`)
+    }
+  }
+  return lines.join('\n')
+}
+
+async function handleEndpointImport(file: File) {
+  importingEndpoints.value = true
+  try {
+    const result = await importEndpointsFromCsv(file)
+    await ElMessageBox.alert(formatImportSummary(result), '落点导入完成', {
+      confirmButtonText: '知道了',
+      type: result.created > 0 ? 'success' : result.errors.length > 0 ? 'warning' : 'info',
+    })
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '落点导入失败')
+  } finally {
+    importingEndpoints.value = false
+  }
+}
+
+function onEndpointImportSelect(file: UploadRawFile) {
+  void handleEndpointImport(file as File)
+  return false
+}
+
 onMounted(load)
 </script>
 
@@ -74,6 +126,24 @@ onMounted(load)
         <el-button :loading="loading" @click="load">刷新</el-button>
       </div>
     </header>
+
+    <section class="import-card">
+      <div>
+        <h2>落点导入</h2>
+        <p class="import-sub">下载 CSV 模板，按 parentPath 填写层级后批量导入全部落点。</p>
+      </div>
+      <div class="import-actions">
+        <el-button :loading="downloadingTemplate" @click="downloadTemplate">下载导入模板</el-button>
+        <el-upload
+          :show-file-list="false"
+          accept=".csv,text/csv"
+          :disabled="importingEndpoints"
+          :before-upload="onEndpointImportSelect"
+        >
+          <el-button type="primary" :loading="importingEndpoints">上传 CSV 导入</el-button>
+        </el-upload>
+      </div>
+    </section>
 
     <el-table
       v-loading="loading"
@@ -151,6 +221,37 @@ h1 {
   margin: 6px 0 0;
   color: #64748b;
   font-size: 14px;
+}
+
+.import-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 16px 18px;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f8fbff 0%, #f1f5f9 100%);
+  flex-wrap: wrap;
+}
+
+.import-card h2 {
+  margin: 0;
+  font-size: 16px;
+  color: #0f172a;
+}
+
+.import-sub {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.import-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .table {
