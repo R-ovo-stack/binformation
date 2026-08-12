@@ -636,7 +636,9 @@ onBeforeUnmount(() => {
       <button type="button" aria-label="适配画布" @click="zoomToFit">⌂</button>
     </div>
     <div ref="containerRef" class="canvas" />
-    <div class="hint">布局与一键成图一致：源 → 程序 → 目标；从落点右侧拖线可新建流向</div>
+    <div class="hint">
+      布局与一键成图一致：源 → 程序 → 目标。拖线新建<strong>独立</strong>流向；编辑 A→B 时再拖 B→C 会新增 B→C，不会改成 A→C
+    </div>
   </div>
 </template>
 

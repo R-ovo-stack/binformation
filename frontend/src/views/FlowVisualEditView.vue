@@ -101,6 +101,41 @@ function endpointLabel(ep: EndpointOption) {
   return `${ep.breadcrumb} / ${ep.name}`
 }
 
+function endpointShortName(id: number | null | undefined): string {
+  if (id == null) return '—'
+  const ep = allEndpoints.value.find((e) => e.id === id)
+  return ep?.name ?? `#${id}`
+}
+
+function flowPairLabel(flow: FlowSummary): string {
+  return `${endpointShortName(flow.sourceEndpointId)} → ${endpointShortName(flow.targetEndpointId)}`
+}
+
+function buildNewFlowNotice(sourceEndpointId: number, targetEndpointId: number): string {
+  const sourceName = endpointShortName(sourceEndpointId)
+  const targetName = endpointShortName(targetEndpointId)
+  const lines = [
+    `将新建一条独立流向：${sourceName} → ${targetName}。`,
+    '保存后不会修改其它已有流向；每条连线对应一条 Flow。',
+  ]
+
+  const inbound = flowSummaries.value.filter((f) => f.targetEndpointId === sourceEndpointId)
+  const outbound = flowSummaries.value.filter((f) => f.sourceEndpointId === targetEndpointId)
+
+  if (inbound.length) {
+    lines.push(
+      `落点「${sourceName}」已是 ${inbound.map(flowPairLabel).join('、')} 的目标；保存后将与之衔接，形成多段链路。`,
+    )
+  }
+  if (outbound.length) {
+    lines.push(
+      `落点「${targetName}」已是 ${outbound.map(flowPairLabel).join('、')} 的源；保存后将与之衔接，形成多段链路。`,
+    )
+  }
+
+  return lines.join(' ')
+}
+
 function ensureEndpointsOnCanvas(...ids: number[]) {
   const set = new Set(canvasEndpointIds.value)
   ids.forEach((id) => {
@@ -227,6 +262,12 @@ function onConnect(sourceEndpointId: number, targetEndpointId: number) {
   selectedEdgeId.value = 'draft'
   selectedPathIndex.value = 0
   ensureEndpointsOnCanvas(sourceEndpointId, targetEndpointId)
+  ElMessage({
+    message: buildNewFlowNotice(sourceEndpointId, targetEndpointId),
+    type: 'warning',
+    duration: 9000,
+    showClose: true,
+  })
 }
 
 async function selectEdge(edgeId: string | null) {
@@ -263,7 +304,7 @@ function addEndpointToCanvas() {
   }
   ensureEndpointsOnCanvas(addEndpointId.value)
   addEndpointId.value = null
-  ElMessage.success('已加入画布')
+  ElMessage.success('已加入画布（仅展示落点，不会自动创建流向；需从源落点拖线到目标落点）')
 }
 
 function addPath() {
@@ -349,7 +390,7 @@ async function savePanel() {
   try {
     if (isDraft.value) {
       const created = await createFlow(assetId.value, payloadBase)
-      ElMessage.success('已创建流向')
+      ElMessage.success('已创建新流向（与已有流向独立保存）')
       draft.value = null
       await refreshFlows()
       selectedEdgeId.value = `flow-${created.id}`
@@ -451,6 +492,13 @@ const targetLabel = computed(() => {
   return ep ? endpointLabel(ep) : id ? `#${id}` : '—'
 })
 
+const draftNotice = computed(() => {
+  if (!isDraft.value || !draft.value?.sourceEndpointId || !draft.value.targetEndpointId) {
+    return ''
+  }
+  return buildNewFlowNotice(draft.value.sourceEndpointId, draft.value.targetEndpointId)
+})
+
 onMounted(load)
 watch(
   () => [props.id, props.flowId],
@@ -491,7 +539,9 @@ watch(
         placeholder="搜索落点…"
       />
       <el-button type="primary" plain @click="addEndpointToCanvas">加入</el-button>
-      <span class="toolbar-tip">已有流向的端点会自动出现；可继续补充其它落点后拖线</span>
+      <span class="toolbar-tip">
+        加入画布仅展示落点；从落点<strong>右侧</strong>拖线到另一落点<strong>左侧</strong>才会新建流向
+      </span>
     </div>
 
     <div class="workspace">
@@ -517,6 +567,26 @@ watch(
             <h2>{{ panelTitle }}</h2>
             <el-button v-if="isDraft" link @click="discardDraft">丢弃</el-button>
           </div>
+
+          <el-alert
+            v-if="isDraft && draftNotice"
+            class="draft-alert"
+            type="warning"
+            :closable="false"
+            show-icon
+            title="新建流向"
+            :description="draftNotice"
+          />
+
+          <el-alert
+            v-else-if="!isDraft && panelFlow?.id"
+            class="draft-alert"
+            type="info"
+            :closable="false"
+            show-icon
+            title="编辑已有流向"
+            description="修改源/目标或路径/步骤后保存，会更新当前这条流向。若需另一条源→目标，请在画布拖新连线。"
+          />
 
           <dl class="pair">
             <div>
@@ -675,7 +745,9 @@ watch(
           </template>
 
           <div class="side-actions">
-            <el-button type="primary" :loading="saving" @click="savePanel">保存</el-button>
+            <el-button type="primary" :loading="saving" @click="savePanel">
+              {{ isDraft ? '创建新流向' : '保存修改' }}
+            </el-button>
             <el-button v-if="!isDraft" type="danger" plain @click="removePanelFlow">删除流向</el-button>
             <el-button link type="primary" @click="openFormEditor">打开表单编辑</el-button>
           </div>
@@ -683,7 +755,8 @@ watch(
         <template v-else>
           <h2>流向编辑</h2>
           <p class="empty-hint">
-            在画布上拖线创建流向，或点击已有连线进行编辑。步骤在右侧配置后保存即可写入台账。
+            在画布上从落点右侧拖线到另一落点左侧，可<strong>新建</strong>一条流向；点击已有连线可<strong>编辑</strong>该流向。
+            编辑 A→B 时再拖 B→C，会新建独立的 B→C 流向，不会合并成一条 A→C。
           </p>
         </template>
       </aside>
@@ -780,6 +853,15 @@ h1 {
   align-items: center;
   gap: 8px;
   margin-bottom: 10px;
+}
+
+.draft-alert {
+  margin-bottom: 12px;
+}
+
+.draft-alert :deep(.el-alert__description) {
+  line-height: 1.55;
+  font-size: 13px;
 }
 
 .side h2 {
