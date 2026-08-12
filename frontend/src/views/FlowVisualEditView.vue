@@ -427,6 +427,18 @@ function openGuide() {
   void router.push({ name: 'flow-editing-guide' })
 }
 
+function zoomToFit() {
+  canvasRef.value?.zoomToFit()
+}
+
+function zoomIn() {
+  canvasRef.value?.zoomIn()
+}
+
+function zoomOut() {
+  canvasRef.value?.zoomOut()
+}
+
 const sourceLabel = computed(() => {
   const id = panelFlow.value?.sourceEndpointId
   const ep = allEndpoints.value.find((e) => e.id === id)
@@ -462,7 +474,9 @@ watch(
       <div class="actions">
         <el-button link type="primary" @click="openGuide">配置说明</el-button>
         <el-button @click="openFormEditor">表单编辑</el-button>
-        <el-button @click="canvasRef?.zoomToFit()">适配画布</el-button>
+        <el-button @click="zoomOut">缩小</el-button>
+        <el-button @click="zoomIn">放大</el-button>
+        <el-button @click="zoomToFit">适配</el-button>
         <el-button :loading="loading" @click="load">刷新</el-button>
       </div>
     </header>

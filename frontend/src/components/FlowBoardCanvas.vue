@@ -581,12 +581,20 @@ function zoomToFit() {
   graph?.zoomToFit({ padding: 40, maxScale: 1.2 })
 }
 
+function zoomIn() {
+  graph?.zoom(0.2)
+}
+
+function zoomOut() {
+  graph?.zoom(-0.2)
+}
+
 function reset() {
   structureKey = ''
   render(true)
 }
 
-defineExpose({ zoomToFit, render, reset })
+defineExpose({ zoomToFit, zoomIn, zoomOut, render, reset })
 
 watch(
   () =>
@@ -622,6 +630,11 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="board-wrap">
+    <div class="zoom-controls">
+      <button type="button" aria-label="放大" @click="zoomIn">+</button>
+      <button type="button" aria-label="缩小" @click="zoomOut">−</button>
+      <button type="button" aria-label="适配画布" @click="zoomToFit">⌂</button>
+    </div>
     <div ref="containerRef" class="canvas" />
     <div class="hint">布局与一键成图一致：源 → 程序 → 目标；从落点右侧拖线可新建流向</div>
   </div>
@@ -656,5 +669,32 @@ onBeforeUnmount(() => {
   color: #64748b;
   font-size: 12px;
   pointer-events: none;
+}
+
+.zoom-controls {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.zoom-controls button {
+  width: 44px;
+  height: 44px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  color: #0f172a;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.zoom-controls button:active {
+  background: #ecf4f1;
 }
 </style>

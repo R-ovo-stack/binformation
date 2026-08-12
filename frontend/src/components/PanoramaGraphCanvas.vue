@@ -177,7 +177,15 @@ function zoomToFit() {
   graphInstance?.zoomToFit({ padding: 48, maxScale: 1.15 })
 }
 
-defineExpose({ zoomToFit, render })
+function zoomIn() {
+  graphInstance?.zoom(0.2)
+}
+
+function zoomOut() {
+  graphInstance?.zoom(-0.2)
+}
+
+defineExpose({ zoomToFit, zoomIn, zoomOut, render })
 
 watch(
   () => [props.graph, props.selectedAssetId] as const,
@@ -191,6 +199,11 @@ onBeforeUnmount(() => destroyGraph())
 
 <template>
   <div class="panorama-wrap">
+    <div class="zoom-controls">
+      <button type="button" aria-label="放大" @click="zoomIn">+</button>
+      <button type="button" aria-label="缩小" @click="zoomOut">−</button>
+      <button type="button" aria-label="适配画布" @click="zoomToFit">⌂</button>
+    </div>
     <div ref="containerRef" class="canvas" />
   </div>
 </template>
@@ -209,5 +222,32 @@ onBeforeUnmount(() => destroyGraph())
 .canvas {
   width: 100%;
   height: 100%;
+}
+
+.zoom-controls {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.zoom-controls button {
+  width: 44px;
+  height: 44px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  color: #0f172a;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.zoom-controls button:active {
+  background: #ecf4f1;
 }
 </style>
