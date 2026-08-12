@@ -103,6 +103,8 @@ function computeStructureKey() {
   return `${ep}#${edges}#${details}#${draftKey}`
 }
 
+const CONNECT_SNAP_RADIUS = 64
+
 function buildGraphInstance() {
   if (!containerRef.value) return
   destroyGraph()
@@ -128,7 +130,8 @@ function buildGraphInstance() {
       allowEdge: false,
       allowPort: true,
       highlight: true,
-      snap: { radius: 24 },
+      snap: { radius: CONNECT_SNAP_RADIUS, anchor: 'center' },
+      connectionPoint: 'anchor',
       connector: { name: 'rounded', args: { radius: 8 } },
       router: { name: 'orth', args: { padding: 12 } },
       createEdge() {
@@ -157,7 +160,25 @@ function buildGraphInstance() {
     highlighting: {
       magnetAvailable: {
         name: 'stroke',
-        args: { attrs: { fill: '#fff', stroke: '#16a34a', strokeWidth: 3 } },
+        args: {
+          attrs: {
+            fill: '#ecfdf5',
+            stroke: '#16a34a',
+            strokeWidth: 3,
+          },
+          padding: 6,
+        },
+      },
+      magnetAdsorbed: {
+        name: 'stroke',
+        args: {
+          attrs: {
+            fill: '#dcfce7',
+            stroke: '#15803d',
+            strokeWidth: 4,
+          },
+          padding: 8,
+        },
       },
     },
   })
@@ -189,13 +210,27 @@ function endpointPorts(endpointId: number) {
       out: {
         position: 'right',
         attrs: {
-          circle: { r: 5, magnet: true, stroke: '#1d4ed8', fill: '#fff', strokeWidth: 1.5 },
+          circle: {
+            r: 9,
+            magnet: true,
+            stroke: '#1d4ed8',
+            fill: '#fff',
+            strokeWidth: 2,
+            cursor: 'crosshair',
+          },
         },
       },
       in: {
         position: 'left',
         attrs: {
-          circle: { r: 5, magnet: true, stroke: '#15803d', fill: '#fff', strokeWidth: 1.5 },
+          circle: {
+            r: 9,
+            magnet: true,
+            stroke: '#15803d',
+            fill: '#fff',
+            strokeWidth: 2,
+            cursor: 'crosshair',
+          },
         },
       },
     },
@@ -637,7 +672,7 @@ onBeforeUnmount(() => {
     </div>
     <div ref="containerRef" class="canvas" />
     <div class="hint">
-      布局与一键成图一致：源 → 程序 → 目标。拖线新建<strong>独立</strong>流向；编辑 A→B 时再拖 B→C 会新增 B→C，不会改成 A→C
+      布局与一键成图一致：源 → 程序 → 目标。拖线靠近落点端口会自动<strong>吸附</strong>；编辑 A→B 时再拖 B→C 会新增独立流向
     </div>
   </div>
 </template>
@@ -698,5 +733,13 @@ onBeforeUnmount(() => {
 
 .zoom-controls button:active {
   background: #ecf4f1;
+}
+
+:deep(.x6-port-body) {
+  transition: filter 0.12s ease;
+}
+
+:deep(.x6-port-body:hover) {
+  filter: drop-shadow(0 0 4px rgba(29, 78, 216, 0.45));
 }
 </style>
