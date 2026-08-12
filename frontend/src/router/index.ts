@@ -11,6 +11,7 @@ import ExecutorListView from '@/views/ExecutorListView.vue'
 import ExecutorEditView from '@/views/ExecutorEditView.vue'
 import DerivationListView from '@/views/DerivationListView.vue'
 import DerivationEditView from '@/views/DerivationEditView.vue'
+import FlowEditingGuideView from '@/views/FlowEditingGuideView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -67,6 +68,11 @@ const router = createRouter({
       name: 'derivation-edit',
       component: DerivationEditView,
       props: true,
+    },
+    {
+      path: '/docs/flow-editing',
+      name: 'flow-editing-guide',
+      component: FlowEditingGuideView,
     },
   ],
 })

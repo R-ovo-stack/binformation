@@ -179,6 +179,10 @@ function openVisual() {
   }
 }
 
+function openGuide() {
+  void router.push({ name: 'flow-editing-guide' })
+}
+
 onMounted(load)
 
 watch(
@@ -198,6 +202,7 @@ watch(
         <p class="meta" v-if="asset">{{ asset.name }} · {{ asset.code }}</p>
       </div>
       <div class="actions">
+        <el-button link type="primary" @click="openGuide">配置说明</el-button>
         <el-button @click="openVisual">可视化编辑</el-button>
         <el-button @click="backToList">取消</el-button>
         <el-button type="primary" :loading="saving" @click="save">保存</el-button>

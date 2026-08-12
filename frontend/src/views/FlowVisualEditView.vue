@@ -423,6 +423,10 @@ function back() {
   void router.push({ name: 'asset-flows', params: { id: props.id } })
 }
 
+function openGuide() {
+  void router.push({ name: 'flow-editing-guide' })
+}
+
 const sourceLabel = computed(() => {
   const id = panelFlow.value?.sourceEndpointId
   const ep = allEndpoints.value.find((e) => e.id === id)
@@ -456,6 +460,7 @@ watch(
         </p>
       </div>
       <div class="actions">
+        <el-button link type="primary" @click="openGuide">配置说明</el-button>
         <el-button @click="openFormEditor">表单编辑</el-button>
         <el-button @click="canvasRef?.zoomToFit()">适配画布</el-button>
         <el-button :loading="loading" @click="load">刷新</el-button>

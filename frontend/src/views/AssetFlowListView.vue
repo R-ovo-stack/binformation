@@ -59,6 +59,10 @@ function openGraph() {
   void router.push({ name: 'asset-graph', params: { id: props.id } })
 }
 
+function openGuide() {
+  void router.push({ name: 'flow-editing-guide' })
+}
+
 async function remove(row: FlowSummary) {
   try {
     await ElMessageBox.confirm(`确定删除流向 #${row.id} 吗？路径与步骤将一并删除。`, '删除确认', {
@@ -91,6 +95,7 @@ onMounted(load)
         </p>
       </div>
       <div class="actions">
+        <el-button link type="primary" @click="openGuide">配置说明</el-button>
         <el-button @click="openGraph">一键成图</el-button>
         <el-button @click="openVisual">可视化编辑</el-button>
         <el-button type="primary" @click="openCreate">新建流向</el-button>

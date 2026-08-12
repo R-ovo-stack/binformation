@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "mkdir -p public/docs && cp ../docs/flow-editing-guide.md public/docs/flow-editing-guide.md",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview"
   },
@@ -14,6 +15,7 @@
     "@element-plus/icons-vue": "^2.3.2",
     "axios": "^1.19.0",
     "element-plus": "^2.14.4",
+    "marked": "^15.0.12",
     "vue": "^3.5.40",
     "vue-router": "^4.6.4"
   },

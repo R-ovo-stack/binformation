@@ -20,6 +20,11 @@ npm run dev
 
 打开 http://localhost:5173
 
+## 流向配置说明
+
+- 网页查看：[http://localhost:5173/docs/flow-editing](http://localhost:5173/docs/flow-editing)
+- 源文件：`docs/flow-editing-guide.md`（构建前会同步到 `public/docs/`）
+
 ## 功能
 
 - 资产列表
