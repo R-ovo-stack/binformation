@@ -15,7 +15,6 @@ import {
   emptyFlow,
   emptyPath,
   emptyStep,
-  purposeLabel,
   toSavePayload,
   type EndpointOption,
   type ExecutorOption,
@@ -36,6 +35,7 @@ const executors = ref<ExecutorOption[]>([])
 const hosts = computed(() => allEndpoints.value.filter((e) => e.type === 'HOST'))
 
 const selectedEdgeId = ref<string | null>(null)
+const selectedPathIndex = ref(0)
 const draft = ref<FlowDetail | null>(null)
 const editing = ref<FlowDetail | null>(null)
 const addEndpointId = ref<number | null>(null)
@@ -56,6 +56,7 @@ const boardEdges = computed<BoardFlowEdge[]>(() => {
     targetEndpointId: f.targetEndpointId,
     purpose: f.purpose,
     primary: f.primary,
+    pathCount: f.pathCount,
   }))
   if (draft.value?.sourceEndpointId && draft.value.targetEndpointId) {
     edges.push({
@@ -65,6 +66,7 @@ const boardEdges = computed<BoardFlowEdge[]>(() => {
       targetEndpointId: draft.value.targetEndpointId,
       purpose: draft.value.purpose,
       primary: draft.value.primary,
+      pathCount: draft.value.paths.length,
       draft: true,
     })
   }
@@ -73,11 +75,24 @@ const boardEdges = computed<BoardFlowEdge[]>(() => {
 
 const panelFlow = computed(() => (selectedEdgeId.value === 'draft' ? draft.value : editing.value))
 const isDraft = computed(() => selectedEdgeId.value === 'draft')
+const activePath = computed(() => {
+  const flow = panelFlow.value
+  if (!flow?.paths.length) return null
+  const idx = Math.min(Math.max(selectedPathIndex.value, 0), flow.paths.length - 1)
+  return flow.paths[idx] ?? null
+})
 const panelTitle = computed(() => {
   if (!panelFlow.value) return '流向编辑'
   if (isDraft.value) return '新建流向（未保存）'
   return `编辑流向 #${panelFlow.value.id}`
 })
+
+const pathTabOptions = computed(() =>
+  (panelFlow.value?.paths || []).map((p, i) => ({
+    name: String(i),
+    label: p.name?.trim() || `路径 ${i + 1}`,
+  })),
+)
 
 function endpointLabel(ep: EndpointOption) {
   return `${ep.breadcrumb} / ${ep.name}`
@@ -146,6 +161,7 @@ async function load() {
     canvasEndpointIds.value = nextCanvasIds
     editing.value = nextEditing
     selectedEdgeId.value = nextSelected
+    selectedPathIndex.value = 0
     boardKey.value += 1
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败')
@@ -168,7 +184,13 @@ function normalizeDetail(detail: FlowDetail): FlowDetail {
 
 function ensureWorkingPath(flow: FlowDetail) {
   if (!flow.paths.length) flow.paths.push(emptyPath(0))
-  if (!flow.paths[0].steps.length) flow.paths[0].steps.push(emptyStep(1))
+  flow.paths.forEach((p, i) => {
+    if (!p.steps.length) p.steps.push(emptyStep(1))
+    if (p.sortOrder == null) p.sortOrder = i
+  })
+  if (selectedPathIndex.value >= flow.paths.length) {
+    selectedPathIndex.value = Math.max(0, flow.paths.length - 1)
+  }
 }
 
 function onConnect(sourceEndpointId: number, targetEndpointId: number) {
@@ -185,6 +207,7 @@ function onConnect(sourceEndpointId: number, targetEndpointId: number) {
     draft.value?.targetEndpointId === targetEndpointId
   ) {
     selectedEdgeId.value = 'draft'
+    selectedPathIndex.value = 0
     return
   }
   const next = emptyFlow(assetId.value)
@@ -194,11 +217,13 @@ function onConnect(sourceEndpointId: number, targetEndpointId: number) {
   draft.value = next
   editing.value = null
   selectedEdgeId.value = 'draft'
+  selectedPathIndex.value = 0
   ensureEndpointsOnCanvas(sourceEndpointId, targetEndpointId)
 }
 
 async function selectEdge(edgeId: string | null) {
   selectedEdgeId.value = edgeId
+  selectedPathIndex.value = 0
   if (!edgeId) {
     editing.value = null
     return
@@ -233,19 +258,43 @@ function addEndpointToCanvas() {
   ElMessage.success('已加入画布')
 }
 
-function addStep() {
+function addPath() {
   const flow = panelFlow.value
   if (!flow) return
   ensureWorkingPath(flow)
-  const path = flow.paths[0]
+  const next = emptyPath(flow.paths.length)
+  next.name = `路径 ${flow.paths.length + 1}`
+  flow.paths.push(next)
+  selectedPathIndex.value = flow.paths.length - 1
+}
+
+function removePath() {
+  const flow = panelFlow.value
+  if (!flow || flow.paths.length <= 1) {
+    ElMessage.warning('至少保留一条路径')
+    return
+  }
+  flow.paths.splice(selectedPathIndex.value, 1)
+  flow.paths.forEach((p, i) => {
+    p.sortOrder = i
+  })
+  selectedPathIndex.value = Math.min(selectedPathIndex.value, flow.paths.length - 1)
+}
+
+function onPathTabChange(name: string | number) {
+  selectedPathIndex.value = Number(name)
+}
+
+function addStep() {
+  const path = activePath.value
+  if (!path) return
   const nextSeq = path.steps.length ? Math.max(...path.steps.map((s) => s.seq)) + 1 : 1
   path.steps.push(emptyStep(nextSeq))
 }
 
 function removeStep(index: number) {
-  const flow = panelFlow.value
-  if (!flow) return
-  const path = flow.paths[0]
+  const path = activePath.value
+  if (!path) return
   if (path.steps.length <= 1) {
     ElMessage.warning('至少保留一个步骤')
     return
@@ -257,9 +306,9 @@ function removeStep(index: number) {
 }
 
 function onExecutorChange(stepIndex: number, executorId: number | null) {
-  const flow = panelFlow.value
-  if (!flow) return
-  const step = flow.paths[0].steps[stepIndex]
+  const path = activePath.value
+  if (!path) return
+  const step = path.steps[stepIndex]
   step.executorId = executorId
   if (!step.hostId && executorId) {
     const ex = executors.value.find((e) => e.id === executorId)
@@ -274,34 +323,19 @@ async function savePanel() {
     return
   }
   ensureWorkingPath(flow)
-  const path = flow.paths[0]
-  if (!path.name.trim()) path.name = '默认路径'
-  for (const step of path.steps) {
-    if (!step.executorId) {
-      ElMessage.warning('请为每个步骤选择程序/脚本')
-      return
+  for (const [pi, path] of flow.paths.entries()) {
+    if (!path.name.trim()) path.name = `路径 ${pi + 1}`
+    path.sortOrder = path.sortOrder ?? pi
+    for (const step of path.steps) {
+      if (!step.executorId) {
+        ElMessage.warning(`路径「${path.name}」存在未选择程序/脚本的步骤`)
+        selectedPathIndex.value = pi
+        return
+      }
     }
   }
-  // 可视化模式只保存当前编辑的第一条路径；已有多路径时保留其余路径
+
   const payloadBase = toSavePayload(flow)
-  if (!isDraft.value && editing.value && editing.value.paths.length > 1) {
-    payloadBase.paths = [
-      payloadBase.paths[0],
-      ...editing.value.paths.slice(1).map((p, index) => ({
-        name: p.name,
-        enabled: p.enabled,
-        sortOrder: p.sortOrder ?? index + 1,
-        remark: p.remark,
-        steps: p.steps.map((s, i) => ({
-          seq: s.seq ?? i + 1,
-          hostId: s.hostId,
-          executorId: s.executorId!,
-          method: s.method,
-          remark: s.remark,
-        })),
-      })),
-    ]
-  }
 
   saving.value = true
   try {
@@ -312,11 +346,13 @@ async function savePanel() {
       await refreshFlows()
       selectedEdgeId.value = `flow-${created.id}`
       editing.value = normalizeDetail(created)
+      selectedPathIndex.value = Math.min(selectedPathIndex.value, editing.value.paths.length - 1)
     } else if (flow.id) {
       const updated = await updateFlow(flow.id, payloadBase)
       ElMessage.success('已保存')
       await refreshFlows()
       editing.value = normalizeDetail(updated)
+      selectedPathIndex.value = Math.min(selectedPathIndex.value, editing.value.paths.length - 1)
     }
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败')
@@ -483,74 +519,121 @@ watch(
             </el-form-item>
           </el-form>
 
-          <div class="steps-head">
-            <h3>路径步骤</h3>
-            <el-button size="small" @click="addStep">添加步骤</el-button>
-          </div>
-          <p class="steps-tip">
-            可视化模式编辑默认路径；多路径请用「表单编辑」。当前用途：{{
-              purposeLabel(panelFlow.purpose)
-            }}
-          </p>
-
-          <div
-            v-for="(step, index) in panelFlow.paths[0]?.steps || []"
-            :key="index"
-            class="step"
-          >
-            <div class="step-title">
-              <strong>步骤 {{ step.seq }}</strong>
+          <div class="paths-head">
+            <h3>路径</h3>
+            <div class="paths-actions">
+              <el-button size="small" @click="addPath">添加路径</el-button>
               <el-button
-                v-if="(panelFlow.paths[0]?.steps.length || 0) > 1"
-                link
+                v-if="(panelFlow.paths?.length || 0) > 1"
+                size="small"
                 type="danger"
-                @click="removeStep(index)"
+                plain
+                @click="removePath"
               >
-                删除
+                删除当前
               </el-button>
             </div>
-            <el-form label-width="72px" size="small">
-              <el-form-item label="程序">
-                <el-select
-                  :model-value="step.executorId"
-                  filterable
-                  placeholder="选择程序/脚本"
-                  style="width: 100%"
-                  @update:model-value="onExecutorChange(index, $event)"
-                >
-                  <el-option
-                    v-for="ex in executors"
-                    :key="ex.id"
-                    :label="`${ex.name} (${ex.code})`"
-                    :value="ex.id"
-                  />
-                </el-select>
+          </div>
+          <p class="steps-tip">
+            同一源→目标可有多条备选路径（如主备通道）；每条路径内步骤按顺序执行。
+          </p>
+
+          <el-tabs
+            :model-value="String(selectedPathIndex)"
+            type="card"
+            class="path-tabs"
+            @tab-change="onPathTabChange"
+          >
+            <el-tab-pane
+              v-for="tab in pathTabOptions"
+              :key="tab.name"
+              :label="tab.label"
+              :name="tab.name"
+            />
+          </el-tabs>
+
+          <template v-if="activePath">
+            <el-form label-width="72px" class="side-form path-meta" size="small">
+              <el-form-item label="名称">
+                <el-input v-model="activePath.name" placeholder="如 cloud201→idc306" />
               </el-form-item>
-              <el-form-item label="主机">
-                <el-select v-model="step.hostId" filterable clearable placeholder="可选" style="width: 100%">
-                  <el-option
-                    v-for="h in hosts"
-                    :key="h.id"
-                    :label="endpointLabel(h)"
-                    :value="h.id"
-                  />
-                </el-select>
+              <el-form-item label="排序">
+                <el-input-number v-model="activePath.sortOrder" :min="0" controls-position="right" />
               </el-form-item>
-              <el-form-item label="方法">
-                <el-select v-model="step.method" style="width: 100%">
-                  <el-option
-                    v-for="o in FLOW_METHOD_OPTIONS"
-                    :key="o.value"
-                    :label="o.label"
-                    :value="o.value"
-                  />
-                </el-select>
+              <el-form-item label="启用">
+                <el-switch v-model="activePath.enabled" />
               </el-form-item>
               <el-form-item label="备注">
-                <el-input v-model="step.remark" />
+                <el-input v-model="activePath.remark" placeholder="可选" />
               </el-form-item>
             </el-form>
-          </div>
+
+            <div class="steps-head">
+              <h3>步骤</h3>
+              <el-button size="small" @click="addStep">添加步骤</el-button>
+            </div>
+
+            <div v-for="(step, index) in activePath.steps" :key="index" class="step">
+              <div class="step-title">
+                <strong>步骤 {{ step.seq }}</strong>
+                <el-button
+                  v-if="activePath.steps.length > 1"
+                  link
+                  type="danger"
+                  @click="removeStep(index)"
+                >
+                  删除
+                </el-button>
+              </div>
+              <el-form label-width="72px" size="small">
+                <el-form-item label="程序">
+                  <el-select
+                    :model-value="step.executorId"
+                    filterable
+                    placeholder="选择程序/脚本"
+                    style="width: 100%"
+                    @update:model-value="onExecutorChange(index, $event)"
+                  >
+                    <el-option
+                      v-for="ex in executors"
+                      :key="ex.id"
+                      :label="`${ex.name} (${ex.code})`"
+                      :value="ex.id"
+                    />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="主机">
+                  <el-select
+                    v-model="step.hostId"
+                    filterable
+                    clearable
+                    placeholder="可选"
+                    style="width: 100%"
+                  >
+                    <el-option
+                      v-for="h in hosts"
+                      :key="h.id"
+                      :label="endpointLabel(h)"
+                      :value="h.id"
+                    />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="方法">
+                  <el-select v-model="step.method" style="width: 100%">
+                    <el-option
+                      v-for="o in FLOW_METHOD_OPTIONS"
+                      :key="o.value"
+                      :label="o.label"
+                      :value="o.value"
+                    />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="备注">
+                  <el-input v-model="step.remark" />
+                </el-form-item>
+              </el-form>
+            </div>
+          </template>
 
           <div class="side-actions">
             <el-button type="primary" :loading="saving" @click="savePanel">保存</el-button>
@@ -638,7 +721,7 @@ h1 {
   flex: 1;
   min-height: 560px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-columns: minmax(0, 1fr) 360px;
   gap: 12px;
 }
 
@@ -695,9 +778,40 @@ h1 {
   margin: 8px 0 4px;
 }
 
-.steps-head h3 {
+.steps-head h3,
+.paths-head h3 {
   margin: 0;
   font-size: 14px;
+}
+
+.paths-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 8px 0 4px;
+  gap: 8px;
+}
+
+.paths-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.path-tabs {
+  margin-bottom: 8px;
+}
+
+.path-tabs :deep(.el-tabs__header) {
+  margin-bottom: 8px;
+}
+
+.path-tabs :deep(.el-tabs__nav-wrap) {
+  overflow-x: auto;
+}
+
+.path-meta {
+  margin-bottom: 4px;
 }
 
 .steps-tip {

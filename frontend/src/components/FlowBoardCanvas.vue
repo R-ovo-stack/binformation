@@ -17,6 +17,7 @@ export interface BoardFlowEdge {
   targetEndpointId: number
   purpose: string
   primary: boolean
+  pathCount?: number
   draft?: boolean
 }
 
@@ -52,6 +53,13 @@ function nodeStroke(type: string): string {
   return '#1f4f46'
 }
 
+function edgeLabelText(edge: BoardFlowEdge): string {
+  const purpose = edge.draft ? '未保存' : purposeLabel(edge.purpose)
+  const count = edge.pathCount ?? 0
+  if (!edge.draft && count > 1) return `${purpose} · ${count}路径`
+  return purpose
+}
+
 function destroyGraph() {
   if (graph) {
     try {
@@ -70,7 +78,7 @@ function destroyGraph() {
 function computeStructureKey() {
   const ep = props.endpoints.map((e) => e.id).sort((a, b) => a - b).join(',')
   const edges = props.edges
-    .map((e) => `${e.id}:${e.sourceEndpointId}>${e.targetEndpointId}:${e.purpose}:${e.primary}:${e.draft ? 1 : 0}`)
+    .map((e) => `${e.id}:${e.sourceEndpointId}>${e.targetEndpointId}:${e.purpose}:${e.primary}:${e.pathCount ?? 0}:${e.draft ? 1 : 0}`)
     .sort()
     .join('|')
   return `${ep}#${edges}`
@@ -221,7 +229,7 @@ function paintCells(fit: boolean) {
           {
             attrs: {
               label: {
-                text: edge.draft ? '未保存' : purposeLabel(edge.purpose),
+                text: edgeLabelText(edge),
                 fill: '#0f172a',
                 fontSize: 11,
                 fontFamily: 'IBM Plex Sans, sans-serif',
@@ -279,7 +287,7 @@ function applySelectionStyles() {
       {
         attrs: {
           label: {
-            text: data.draft ? '未保存' : purposeLabel(data.purpose),
+            text: edgeLabelText(data),
             fill: '#0f172a',
             fontSize: 11,
             fontFamily: 'IBM Plex Sans, sans-serif',
