@@ -168,6 +168,17 @@ function backToList() {
   void router.push({ name: 'asset-flows', params: { id: props.id } })
 }
 
+function openVisual() {
+  if (isEdit.value && props.flowId) {
+    void router.push({
+      name: 'flow-visual-edit',
+      params: { id: props.id, flowId: props.flowId },
+    })
+  } else {
+    void router.push({ name: 'flow-visual', params: { id: props.id } })
+  }
+}
+
 onMounted(load)
 
 watch(
@@ -187,6 +198,7 @@ watch(
         <p class="meta" v-if="asset">{{ asset.name }} · {{ asset.code }}</p>
       </div>
       <div class="actions">
+        <el-button @click="openVisual">可视化编辑</el-button>
         <el-button @click="backToList">取消</el-button>
         <el-button type="primary" :loading="saving" @click="save">保存</el-button>
       </div>

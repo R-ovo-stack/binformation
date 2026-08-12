@@ -40,8 +40,19 @@ function openCreate() {
   void router.push({ name: 'flow-create', params: { id: props.id } })
 }
 
+function openVisual() {
+  void router.push({ name: 'flow-visual', params: { id: props.id } })
+}
+
 function openEdit(row: FlowSummary) {
   void router.push({ name: 'flow-edit', params: { id: props.id, flowId: String(row.id) } })
+}
+
+function openVisualEdit(row: FlowSummary) {
+  void router.push({
+    name: 'flow-visual-edit',
+    params: { id: props.id, flowId: String(row.id) },
+  })
 }
 
 function openGraph() {
@@ -81,6 +92,7 @@ onMounted(load)
       </div>
       <div class="actions">
         <el-button @click="openGraph">一键成图</el-button>
+        <el-button @click="openVisual">可视化编辑</el-button>
         <el-button type="primary" @click="openCreate">新建流向</el-button>
         <el-button :loading="loading" @click="load">刷新</el-button>
       </div>
@@ -112,9 +124,10 @@ onMounted(load)
         <template #default="{ row }">{{ row.pathCount }} / {{ row.stepCount }}</template>
       </el-table-column>
       <el-table-column prop="remark" label="备注" min-width="140" show-overflow-tooltip />
-      <el-table-column label="操作" width="160" fixed="right">
+      <el-table-column label="操作" width="220" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+          <el-button link type="primary" @click="openVisualEdit(row)">可视化</el-button>
+          <el-button link type="primary" @click="openEdit(row)">表单编辑</el-button>
           <el-button link type="danger" @click="remove(row)">删除</el-button>
         </template>
       </el-table-column>

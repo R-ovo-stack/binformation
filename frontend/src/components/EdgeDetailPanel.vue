@@ -22,6 +22,14 @@ const canEdit = computed(
 function editFlow() {
   if (!canEdit.value || !props.edge?.flowId || props.assetId == null) return
   void router.push({
+    name: 'flow-visual-edit',
+    params: { id: String(props.assetId), flowId: String(props.edge.flowId) },
+  })
+}
+
+function editFlowForm() {
+  if (!canEdit.value || !props.edge?.flowId || props.assetId == null) return
+  void router.push({
     name: 'flow-edit',
     params: { id: String(props.assetId), flowId: String(props.edge.flowId) },
   })
@@ -33,7 +41,8 @@ function editFlow() {
     <template v-if="edge">
       <div class="head">
         <h3>流向详情</h3>
-        <el-button v-if="canEdit" link type="primary" @click="editFlow">编辑流向</el-button>
+        <el-button v-if="canEdit" link type="primary" @click="editFlow">可视化编辑</el-button>
+        <el-button v-if="canEdit" link type="primary" @click="editFlowForm">表单</el-button>
       </div>
       <dl>
         <div>

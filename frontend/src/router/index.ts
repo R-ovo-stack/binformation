@@ -4,6 +4,7 @@ import AssetEditView from '@/views/AssetEditView.vue'
 import AssetGraphView from '@/views/AssetGraphView.vue'
 import AssetFlowListView from '@/views/AssetFlowListView.vue'
 import FlowEditView from '@/views/FlowEditView.vue'
+import FlowVisualEditView from '@/views/FlowVisualEditView.vue'
 import EndpointListView from '@/views/EndpointListView.vue'
 import EndpointEditView from '@/views/EndpointEditView.vue'
 import ExecutorListView from '@/views/ExecutorListView.vue'
@@ -28,6 +29,18 @@ const router = createRouter({
       path: '/assets/:id/flows/:flowId/edit',
       name: 'flow-edit',
       component: FlowEditView,
+      props: true,
+    },
+    {
+      path: '/assets/:id/flows/visual',
+      name: 'flow-visual',
+      component: FlowVisualEditView,
+      props: true,
+    },
+    {
+      path: '/assets/:id/flows/:flowId/visual',
+      name: 'flow-visual-edit',
+      component: FlowVisualEditView,
       props: true,
     },
     { path: '/assets/:id/graph', name: 'asset-graph', component: AssetGraphView, props: true },
