@@ -317,6 +317,7 @@ public class EndpointService {
                 ep.getId(),
                 ep.getType(),
                 ep.getName(),
+                ep.getParentId(),
                 EndpointSupport.buildBreadcrumb(ep, all),
                 zone == null ? null : zone.getId(),
                 zone == null ? null : zone.getName()

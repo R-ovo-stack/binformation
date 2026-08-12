@@ -5,6 +5,7 @@ import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { getAsset } from '@/api/asset'
 import { createFlow, getFlow, updateFlow } from '@/api/flow'
 import { listEndpointOptions, listExecutorOptions } from '@/api/reference'
+import EndpointTreeSelect from '@/components/EndpointTreeSelect.vue'
 import type { DataAsset } from '@/types/graph'
 import {
   FLOW_METHOD_OPTIONS,
@@ -197,36 +198,20 @@ watch(
         <el-row :gutter="16">
           <el-col :xs="24" :md="12">
             <el-form-item label="源落点" prop="sourceEndpointId">
-              <el-select
+              <EndpointTreeSelect
                 v-model="form.sourceEndpointId"
-                filterable
-                placeholder="选择源落点"
-                style="width: 100%"
-              >
-                <el-option
-                  v-for="ep in endpoints"
-                  :key="ep.id"
-                  :label="endpointLabel(ep)"
-                  :value="ep.id"
-                />
-              </el-select>
+                :options="endpoints"
+                placeholder="搜索或从树中选择源落点"
+              />
             </el-form-item>
           </el-col>
           <el-col :xs="24" :md="12">
             <el-form-item label="目标落点" prop="targetEndpointId">
-              <el-select
+              <EndpointTreeSelect
                 v-model="form.targetEndpointId"
-                filterable
-                placeholder="选择目标落点"
-                style="width: 100%"
-              >
-                <el-option
-                  v-for="ep in endpoints"
-                  :key="ep.id"
-                  :label="endpointLabel(ep)"
-                  :value="ep.id"
-                />
-              </el-select>
+                :options="endpoints"
+                placeholder="搜索或从树中选择目标落点"
+              />
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="8">

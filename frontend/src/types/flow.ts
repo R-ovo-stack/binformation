@@ -92,6 +92,7 @@ export interface EndpointOption {
   id: number
   type: string
   name: string
+  parentId?: number | null
   breadcrumb: string
   zoneId?: number | null
   zoneName?: string | null
