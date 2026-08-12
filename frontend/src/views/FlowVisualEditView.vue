@@ -40,6 +40,7 @@ const draft = ref<FlowDetail | null>(null)
 const editing = ref<FlowDetail | null>(null)
 const addEndpointId = ref<number | null>(null)
 const canvasRef = ref<InstanceType<typeof FlowBoardCanvas> | null>(null)
+const boardKey = ref(0)
 
 const assetId = computed(() => Number(props.id))
 
@@ -103,28 +104,49 @@ async function load() {
       listEndpointOptions(),
       listExecutorOptions(),
     ])
-    asset.value = assetData
-    flowSummaries.value = flows
-    allEndpoints.value = eps
-    executors.value = execs
 
     const used = new Set<number>()
     flows.forEach((f) => {
       used.add(f.sourceEndpointId)
       used.add(f.targetEndpointId)
     })
+
+    let nextEditing: FlowDetail | null = null
+    let nextSelected: string | null = null
     if (props.flowId) {
       const detail = await getFlow(Number(props.flowId))
       used.add(detail.sourceEndpointId!)
       used.add(detail.targetEndpointId!)
-      editing.value = normalizeDetail(detail)
-      selectedEdgeId.value = `flow-${detail.id}`
+      nextEditing = normalizeDetail(detail)
+      nextSelected = `flow-${detail.id}`
+    } else if (
+      selectedEdgeId.value &&
+      selectedEdgeId.value !== 'draft' &&
+      flows.some((f) => `flow-${f.id}` === selectedEdgeId.value)
+    ) {
+      nextSelected = selectedEdgeId.value
+      try {
+        nextEditing = normalizeDetail(await getFlow(Number(selectedEdgeId.value.replace(/^flow-/, ''))))
+      } catch {
+        nextSelected = null
+        nextEditing = null
+      }
     }
-    canvasEndpointIds.value = [...used]
-    if (!canvasEndpointIds.value.length && eps.length) {
-      // 空资产时放入各区少量代表落点，便于开始拖线
-      canvasEndpointIds.value = eps.slice(0, Math.min(12, eps.length)).map((e) => e.id)
-    }
+
+    const nextCanvasIds = used.size
+      ? [...used]
+      : eps.slice(0, Math.min(12, eps.length)).map((e) => e.id)
+
+    // 一次性提交状态，避免多次 watch 叠图画布
+    draft.value = null
+    asset.value = assetData
+    executors.value = execs
+    allEndpoints.value = eps
+    flowSummaries.value = flows
+    canvasEndpointIds.value = nextCanvasIds
+    editing.value = nextEditing
+    selectedEdgeId.value = nextSelected
+    boardKey.value += 1
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败')
   } finally {
@@ -404,6 +426,7 @@ watch(
 
     <div class="workspace">
       <FlowBoardCanvas
+        :key="boardKey"
         ref="canvasRef"
         class="board"
         :endpoints="canvasEndpoints"

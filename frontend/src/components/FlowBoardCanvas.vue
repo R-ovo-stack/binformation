@@ -34,6 +34,7 @@ const emit = defineEmits<{
 const containerRef = ref<HTMLDivElement | null>(null)
 let graph: Graph | null = null
 let renderSeq = 0
+let structureKey = ''
 
 function nodeFill(type: string): string {
   if (type.includes('TOPIC')) return '#eff6ff'
@@ -51,116 +52,34 @@ function nodeStroke(type: string): string {
   return '#1f4f46'
 }
 
-function render() {
-  if (!containerRef.value || !graph) return
-  const seq = ++renderSeq
-  const layouts = layoutBoardEndpoints(props.endpoints)
-  const layoutIds = new Set(layouts.map((n) => n.id))
-
-  graph.clearCells()
-
-  layouts.forEach((n) => {
-    graph!.addNode({
-      id: boardNodeId(n.id),
-      x: n.x - n.width / 2,
-      y: n.y - n.height / 2,
-      width: n.width,
-      height: n.height,
-      shape: 'rect',
-      attrs: {
-        body: {
-          fill: nodeFill(n.type),
-          stroke: nodeStroke(n.type),
-          strokeWidth: 1.5,
-          rx: 10,
-          ry: 10,
-        },
-        label: {
-          text: `${n.label}\n${n.typeLabel}`,
-          fill: '#0f172a',
-          fontSize: 12,
-          fontFamily: 'IBM Plex Sans, sans-serif',
-          textWrap: { width: n.width - 16, height: n.height - 10, ellipsis: true },
-        },
-      },
-      ports: {
-        groups: {
-          out: {
-            position: 'right',
-            attrs: {
-              circle: { r: 5, magnet: true, stroke: '#1d4ed8', fill: '#fff', strokeWidth: 1.5 },
-            },
-          },
-          in: {
-            position: 'left',
-            attrs: {
-              circle: { r: 5, magnet: true, stroke: '#15803d', fill: '#fff', strokeWidth: 1.5 },
-            },
-          },
-        },
-        items: [
-          { id: 'out', group: 'out' },
-          { id: 'in', group: 'in' },
-        ],
-      },
-      data: { endpointId: n.id, breadcrumb: n.breadcrumb },
-    })
-  })
-
-  props.edges.forEach((edge) => {
-    if (!layoutIds.has(edge.sourceEndpointId) || !layoutIds.has(edge.targetEndpointId)) return
-    const selected = props.selectedEdgeId === edge.id
-    const stroke = edge.draft
-      ? '#ea580c'
-      : edgeStroke({ primary: edge.primary, purpose: edge.purpose, upstream: false })
-    graph!.addEdge({
-      id: edge.id,
-      source: { cell: boardNodeId(edge.sourceEndpointId), port: 'out' },
-      target: { cell: boardNodeId(edge.targetEndpointId), port: 'in' },
-      labels: [
-        {
-          attrs: {
-            label: {
-              text: edge.draft ? '未保存' : purposeLabel(edge.purpose),
-              fill: '#0f172a',
-              fontSize: 11,
-              fontFamily: 'IBM Plex Sans, sans-serif',
-            },
-            body: {
-              fill: '#fff',
-              stroke: selected ? '#0f3d36' : '#cbd5e1',
-              strokeWidth: selected ? 1.5 : 1,
-              rx: 4,
-              ry: 4,
-            },
-          },
-          position: 0.5,
-        },
-      ],
-      attrs: {
-        line: {
-          stroke,
-          strokeWidth: selected ? 3 : edge.primary ? 2.2 : 1.6,
-          strokeDasharray: edge.draft ? '6 4' : edge.primary ? undefined : '6 4',
-          targetMarker: { name: 'block', width: 10, height: 7 },
-        },
-      },
-      router: { name: 'orth', args: { padding: 16 } },
-      connector: { name: 'rounded', args: { radius: 8 } },
-      data: edge,
-      zIndex: selected ? 20 : 1,
-    })
-  })
-
-  if (seq !== renderSeq) return
-  if (layouts.length) {
-    graph.zoomToFit({ padding: 48, maxScale: 1.1 })
+function destroyGraph() {
+  if (graph) {
+    try {
+      graph.off()
+      graph.dispose()
+    } catch {
+      // ignore dispose races during rapid refresh
+    }
+    graph = null
+  }
+  if (containerRef.value) {
+    containerRef.value.innerHTML = ''
   }
 }
 
-function initGraph() {
+function computeStructureKey() {
+  const ep = props.endpoints.map((e) => e.id).sort((a, b) => a - b).join(',')
+  const edges = props.edges
+    .map((e) => `${e.id}:${e.sourceEndpointId}>${e.targetEndpointId}:${e.purpose}:${e.primary}:${e.draft ? 1 : 0}`)
+    .sort()
+    .join('|')
+  return `${ep}#${edges}`
+}
+
+function buildGraph() {
   if (!containerRef.value) return
-  graph?.dispose()
+  destroyGraph()
+
   graph = new Graph({
     container: containerRef.value,
     autoResize: true,
@@ -226,26 +145,205 @@ function initGraph() {
 
   graph.on('blank:click', () => emit('selectEdge', null))
   graph.on('node:click', () => emit('selectEdge', null))
+}
 
-  render()
+function paintCells(fit: boolean) {
+  if (!graph) return
+  const seq = ++renderSeq
+  const layouts = layoutBoardEndpoints(props.endpoints)
+  const layoutIds = new Set(layouts.map((n) => n.id))
+
+  graph.batchUpdate(() => {
+    const existing = graph!.getCells()
+    if (existing.length) {
+      graph!.removeCells(existing)
+    }
+
+    layouts.forEach((n) => {
+      graph!.addNode({
+        id: boardNodeId(n.id),
+        x: n.x - n.width / 2,
+        y: n.y - n.height / 2,
+        width: n.width,
+        height: n.height,
+        shape: 'rect',
+        attrs: {
+          body: {
+            fill: nodeFill(n.type),
+            stroke: nodeStroke(n.type),
+            strokeWidth: 1.5,
+            rx: 10,
+            ry: 10,
+          },
+          label: {
+            text: `${n.label}\n${n.typeLabel}`,
+            fill: '#0f172a',
+            fontSize: 12,
+            fontFamily: 'IBM Plex Sans, sans-serif',
+            textWrap: { width: n.width - 16, height: n.height - 10, ellipsis: true },
+          },
+        },
+        ports: {
+          groups: {
+            out: {
+              position: 'right',
+              attrs: {
+                circle: { r: 5, magnet: true, stroke: '#1d4ed8', fill: '#fff', strokeWidth: 1.5 },
+              },
+            },
+            in: {
+              position: 'left',
+              attrs: {
+                circle: { r: 5, magnet: true, stroke: '#15803d', fill: '#fff', strokeWidth: 1.5 },
+              },
+            },
+          },
+          items: [
+            { id: 'out', group: 'out' },
+            { id: 'in', group: 'in' },
+          ],
+        },
+        data: { endpointId: n.id, breadcrumb: n.breadcrumb },
+      })
+    })
+
+    props.edges.forEach((edge) => {
+      if (!layoutIds.has(edge.sourceEndpointId) || !layoutIds.has(edge.targetEndpointId)) return
+      const selected = props.selectedEdgeId === edge.id
+      const stroke = edge.draft
+        ? '#ea580c'
+        : edgeStroke({ primary: edge.primary, purpose: edge.purpose, upstream: false })
+      graph!.addEdge({
+        id: edge.id,
+        source: { cell: boardNodeId(edge.sourceEndpointId), port: 'out' },
+        target: { cell: boardNodeId(edge.targetEndpointId), port: 'in' },
+        labels: [
+          {
+            attrs: {
+              label: {
+                text: edge.draft ? '未保存' : purposeLabel(edge.purpose),
+                fill: '#0f172a',
+                fontSize: 11,
+                fontFamily: 'IBM Plex Sans, sans-serif',
+              },
+              body: {
+                fill: '#fff',
+                stroke: selected ? '#0f3d36' : '#cbd5e1',
+                strokeWidth: selected ? 1.5 : 1,
+                rx: 4,
+                ry: 4,
+              },
+            },
+            position: 0.5,
+          },
+        ],
+        attrs: {
+          line: {
+            stroke,
+            strokeWidth: selected ? 3 : edge.primary ? 2.2 : 1.6,
+            strokeDasharray: edge.draft ? '6 4' : edge.primary ? undefined : '6 4',
+            targetMarker: { name: 'block', width: 10, height: 7 },
+          },
+        },
+        router: { name: 'orth', args: { padding: 16 } },
+        connector: { name: 'rounded', args: { radius: 8 } },
+        data: edge,
+        zIndex: selected ? 20 : 1,
+      })
+    })
+  })
+
+  if (seq !== renderSeq) return
+  if (fit && layouts.length) {
+    graph.zoomToFit({ padding: 48, maxScale: 1.1 })
+  }
+}
+
+function applySelectionStyles() {
+  if (!graph) return
+  graph.getEdges().forEach((edge) => {
+    const data = edge.getData() as BoardFlowEdge | undefined
+    if (!data || !('sourceEndpointId' in data)) return
+    const selected = props.selectedEdgeId === edge.id
+    const stroke = data.draft
+      ? '#ea580c'
+      : edgeStroke({ primary: data.primary, purpose: data.purpose, upstream: false })
+    edge.setAttrs({
+      line: {
+        stroke,
+        strokeWidth: selected ? 3 : data.primary ? 2.2 : 1.6,
+        strokeDasharray: data.draft ? '6 4' : data.primary ? undefined : '6 4',
+      },
+    })
+    edge.setLabels([
+      {
+        attrs: {
+          label: {
+            text: data.draft ? '未保存' : purposeLabel(data.purpose),
+            fill: '#0f172a',
+            fontSize: 11,
+            fontFamily: 'IBM Plex Sans, sans-serif',
+          },
+          body: {
+            fill: '#fff',
+            stroke: selected ? '#0f3d36' : '#cbd5e1',
+            strokeWidth: selected ? 1.5 : 1,
+            rx: 4,
+            ry: 4,
+          },
+        },
+        position: 0.5,
+      },
+    ])
+    edge.setZIndex(selected ? 20 : 1)
+  })
+}
+
+function render(forceRebuild = false) {
+  if (!containerRef.value) return
+  const nextKey = computeStructureKey()
+  const structureChanged = forceRebuild || nextKey !== structureKey || !graph
+  structureKey = nextKey
+
+  if (structureChanged) {
+    buildGraph()
+    paintCells(true)
+  } else {
+    applySelectionStyles()
+  }
 }
 
 function zoomToFit() {
   graph?.zoomToFit({ padding: 48, maxScale: 1.1 })
 }
 
-defineExpose({ zoomToFit, render })
+function reset() {
+  structureKey = ''
+  render(true)
+}
+
+defineExpose({ zoomToFit, render, reset })
 
 watch(
-  () => [props.endpoints, props.edges, props.selectedEdgeId] as const,
-  () => render(),
+  () => [props.endpoints, props.edges] as const,
+  () => render(false),
   { deep: true },
 )
 
-onMounted(initGraph)
+watch(
+  () => props.selectedEdgeId,
+  () => {
+    if (!graph) {
+      render(true)
+      return
+    }
+    applySelectionStyles()
+  },
+)
+
+onMounted(() => render(true))
 onBeforeUnmount(() => {
-  graph?.dispose()
-  graph = null
+  destroyGraph()
 })
 </script>
 
