@@ -429,6 +429,9 @@ function zoomOut() {
 
 function exportPng() {
   if (!graphInstance) return
+  // Scale canvas export above CSS pixels so text/edges stay sharp on retina displays.
+  const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
+  const ratio = Math.min(Math.max(Math.round(dpr * 2), 3), 4)
   graphInstance.toPNG(
     (dataUri) => {
       const link = document.createElement('a')
@@ -437,9 +440,11 @@ function exportPng() {
       link.click()
     },
     {
-      backgroundColor: '#f4f7f5',
-      padding: 24,
+      backgroundColor: '#f7fafb',
+      padding: 32,
       quality: 1,
+      ratio,
+      copyStyles: true,
     },
   )
 }
