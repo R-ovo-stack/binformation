@@ -147,14 +147,11 @@ public class ImpactAnalysisService {
         List<Derivation> outputDerivations = derivationMapper.selectList(
                 new LambdaQueryWrapper<Derivation>().eq(Derivation::getOutputAssetId, assetId));
         if (!outputDerivations.isEmpty()) {
-            blockers.add(simpleGroup("ASSET_DERIVATION_OUTPUT", SEVERITY_BLOCKER,
+            blockers.add(derivationGroup(
+                    "ASSET_DERIVATION_OUTPUT",
+                    SEVERITY_BLOCKER,
                     "仍有 " + outputDerivations.size() + " 条派生以该资产为输出",
-                    "DERIVATION",
-                    outputDerivations,
-                    d -> d.getId(),
-                    d -> d.getName() + " (#" + d.getId() + ")",
-                    null,
-                    null));
+                    outputDerivations));
         }
 
         List<DerivationInput> inputs = derivationInputMapper.selectList(
@@ -167,15 +164,27 @@ public class ImpactAnalysisService {
             List<ImpactItemDto> items = inputs.stream()
                     .map(in -> {
                         Derivation d = derivations.get(in.getDerivationId());
-                        String name = d == null ? "派生#" + in.getDerivationId() : d.getName();
+                        if (d == null) {
+                            return new ImpactItemDto(
+                                    in.getDerivationId(),
+                                    "派生#" + in.getDerivationId() + " (输入资产)",
+                                    "DERIVATION",
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    "INPUT",
+                                    "派生输入引用");
+                        }
+                        ImpactItemDto base = derivationItem(d);
                         return new ImpactItemDto(
-                                in.getDerivationId(),
-                                name + " (输入资产)",
-                                "DERIVATION",
-                                assetId,
-                                asset.getName(),
-                                null,
-                                null,
+                                base.id(),
+                                base.label() + " (输入资产)",
+                                base.entityType(),
+                                base.assetId(),
+                                base.assetName(),
+                                base.flowId(),
+                                base.endpointId(),
                                 "INPUT",
                                 "派生输入引用");
                     })
@@ -274,14 +283,11 @@ public class ImpactAnalysisService {
         List<Derivation> derivations = derivationMapper.selectList(
                 new LambdaQueryWrapper<Derivation>().eq(Derivation::getExecutorId, executorId));
         if (!derivations.isEmpty()) {
-            blockers.add(simpleGroup("EXECUTOR_DERIVATION", SEVERITY_BLOCKER,
+            blockers.add(derivationGroup(
+                    "EXECUTOR_DERIVATION",
+                    SEVERITY_BLOCKER,
                     "该程序仍被 " + derivations.size() + " 条派生引用",
-                    "DERIVATION",
-                    derivations,
-                    Derivation::getId,
-                    d -> d.getName() + " (#" + d.getId() + ")",
-                    null,
-                    null));
+                    derivations));
         }
 
         return buildResult("EXECUTOR", executorId, executor.getName(), "DELETE", blockers, List.of());
@@ -402,14 +408,37 @@ public class ImpactAnalysisService {
         if (derivations.isEmpty()) {
             return;
         }
-        target.add(simpleGroup("DERIVATION_HOST", severity,
+        target.add(derivationGroup(
+                "DERIVATION_HOST",
+                severity,
                 "仍被 " + derivations.size() + " 条派生引用为部署主机",
+                derivations));
+    }
+
+    private ImpactGroupDto derivationGroup(
+            String kind,
+            String severity,
+            String message,
+            List<Derivation> derivations) {
+        List<ImpactItemDto> items = derivations.stream()
+                .limit(ITEM_LIMIT)
+                .map(this::derivationItem)
+                .toList();
+        return new ImpactGroupDto(kind, severity, derivations.size(), message, items);
+    }
+
+    private ImpactItemDto derivationItem(Derivation derivation) {
+        DataAsset output = dataAssetMapper.selectById(derivation.getOutputAssetId());
+        return new ImpactItemDto(
+                derivation.getId(),
+                derivation.getName() + " (#" + derivation.getId() + ")",
                 "DERIVATION",
-                derivations,
-                Derivation::getId,
-                d -> d.getName() + " (#" + d.getId() + ")",
+                derivation.getOutputAssetId(),
+                output == null ? null : output.getName(),
                 null,
-                null));
+                null,
+                null,
+                null);
     }
 
     private void appendFlowLayoutWarnings(Long endpointId, List<ImpactGroupDto> warnings) {

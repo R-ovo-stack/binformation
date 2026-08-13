@@ -13,6 +13,7 @@ import DerivationListView from '@/views/DerivationListView.vue'
 import DerivationEditView from '@/views/DerivationEditView.vue'
 import FlowEditingGuideView from '@/views/FlowEditingGuideView.vue'
 import PanoramaGraphView from '@/views/PanoramaGraphView.vue'
+import ImpactAnalysisView from '@/views/ImpactAnalysisView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -75,6 +76,11 @@ const router = createRouter({
       path: '/docs/flow-editing',
       name: 'flow-editing-guide',
       component: FlowEditingGuideView,
+    },
+    {
+      path: '/impact',
+      name: 'impact',
+      component: ImpactAnalysisView,
     },
   ],
 })

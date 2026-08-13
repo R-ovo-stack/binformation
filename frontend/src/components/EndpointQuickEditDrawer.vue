@@ -11,6 +11,7 @@ import {
   serializeAttrs,
   suggestNameFromAttrs,
 } from '@/utils/endpointAttrs'
+import ImpactAnalysisPanel from '@/components/ImpactAnalysisPanel.vue'
 
 const props = defineProps<{
   modelValue: boolean
@@ -176,7 +177,7 @@ watch(
   <el-drawer
     v-model="open"
     :title="title"
-    size="420px"
+    size="480px"
     destroy-on-close
     class="endpoint-quick-edit"
   >
@@ -234,6 +235,15 @@ watch(
           <el-input v-model="form.remark" type="textarea" :rows="2" />
         </el-form-item>
       </el-form>
+
+      <ImpactAnalysisPanel
+        v-if="endpointId"
+        entity-type="ENDPOINT"
+        :entity-id="endpointId"
+        action="UPDATE"
+        compact
+        embedded
+      />
     </div>
 
     <template #footer>

@@ -53,4 +53,16 @@ class ImpactAnalysisControllerTest {
                 .andExpect(jsonPath("$.canProceed", is(true)))
                 .andExpect(jsonPath("$.warnings.length()", greaterThan(0)));
     }
+
+    @Test
+    void shouldAnalyzeAssetDeleteImpact() throws Exception {
+        mockMvc.perform(get("/api/impact")
+                        .param("entityType", "ASSET")
+                        .param("entityId", "1")
+                        .param("action", "DELETE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.entityType", is("ASSET")))
+                .andExpect(jsonPath("$.entityId", is(1)))
+                .andExpect(jsonPath("$.blockers").isArray());
+    }
 }
