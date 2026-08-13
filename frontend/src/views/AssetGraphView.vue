@@ -212,7 +212,7 @@ onMounted(() => {
 .page {
   height: 100%;
   min-height: 100vh;
-  padding: 20px;
+  padding: 14px clamp(10px, 1.2vw, 16px) 18px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;

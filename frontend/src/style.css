@@ -35,8 +35,8 @@
   --shadow-soft: 0 10px 30px rgba(15, 35, 55, 0.06);
   --shadow-panel: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 12px 36px rgba(15, 35, 55, 0.07);
   --font-display: 'Space Grotesk', 'Source Sans 3', sans-serif;
-  --page-max: 1180px;
-  --page-pad-x: 22px;
+  --page-max: 1480px;
+  --page-pad-x: 28px;
   --page-pad-y: 24px;
 
   --el-color-primary: #0d9488;
@@ -113,6 +113,7 @@ h3 {
 }
 
 .page {
+  width: min(100%, var(--page-max));
   max-width: var(--page-max);
   margin: 0 auto;
   padding: var(--page-pad-y) var(--page-pad-x) 56px;
@@ -120,17 +121,20 @@ h3 {
 }
 
 .page-wide {
-  max-width: 1280px;
+  --page-max: 1680px;
+  width: min(100%, var(--page-max));
+  max-width: var(--page-max);
 }
 
 .page-fill {
   max-width: none;
+  width: 100%;
   min-height: 100vh;
   height: 100%;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 18px var(--page-pad-x) 24px;
+  padding: 18px clamp(12px, 1.6vw, 20px) 24px;
   animation: page-enter 0.35s ease both;
 }
 

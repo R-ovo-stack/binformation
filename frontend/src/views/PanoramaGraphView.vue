@@ -260,7 +260,7 @@ onMounted(async () => {
 <style scoped>
 .page {
   min-height: 100vh;
-  padding: 16px 20px 24px;
+  padding: 14px clamp(10px, 1.2vw, 16px) 20px;
   box-sizing: border-box;
 }
 

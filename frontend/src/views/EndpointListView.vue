@@ -177,9 +177,10 @@ onMounted(load)
 
 <style scoped>
 .page {
-  max-width: 1180px;
+  width: min(100%, var(--page-max));
+  max-width: var(--page-max);
   margin: 0 auto;
-  padding: 20px 20px 48px;
+  padding: var(--page-pad-y) var(--page-pad-x) 56px;
 }
 
 .topbar {

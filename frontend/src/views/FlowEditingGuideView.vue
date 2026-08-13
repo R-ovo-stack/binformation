@@ -31,7 +31,7 @@ function goBack() {
 
 <style scoped>
 .page {
-  max-width: 920px;
+  max-width: min(1100px, var(--page-max));
   margin: 0 auto;
   padding: 16px 20px 40px;
 }

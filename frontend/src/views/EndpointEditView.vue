@@ -333,7 +333,7 @@ watch(() => props.id, load)
 
 <style scoped>
 .page {
-  max-width: 720px;
+  max-width: 880px;
   margin: 0 auto;
   padding: 20px;
 }
