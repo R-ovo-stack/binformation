@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getAsset } from '@/api/asset'
@@ -22,6 +22,17 @@ import {
   type FlowDetail,
   type FlowSummary,
 } from '@/types/flow'
+import {
+  VisualEditHistory,
+  cloneVisualEditSnapshot,
+  type VisualEditSnapshot,
+} from '@/utils/visualEditHistory'
+import {
+  clearLocalVisualDraft,
+  formatDraftSavedAt,
+  loadLocalVisualDraft,
+  saveLocalVisualDraft,
+} from '@/utils/visualEditLocalDraft'
 
 const props = defineProps<{ id: string; flowId?: string }>()
 const router = useRouter()
@@ -46,7 +57,169 @@ const boardKey = ref(0)
 const endpointEditOpen = ref(false)
 const endpointEditId = ref<number | null>(null)
 
+const editHistory = new VisualEditHistory()
+const isRestoring = ref(false)
+const canUndo = ref(false)
+const canRedo = ref(false)
+const localDraftSavedAt = ref<string | null>(null)
+let historyDebounceTimer: ReturnType<typeof setTimeout> | null = null
+let localDraftTimer: ReturnType<typeof setTimeout> | null = null
+
 const assetId = computed(() => Number(props.id))
+
+function syncHistoryUi() {
+  canUndo.value = editHistory.canUndo()
+  canRedo.value = editHistory.canRedo()
+}
+
+function getSnapshot(): VisualEditSnapshot {
+  return cloneVisualEditSnapshot({
+    draft: draft.value,
+    editing: editing.value,
+    flowDetailsCache: flowDetailsCache.value,
+    canvasEndpointIds: canvasEndpointIds.value,
+    selectedEdgeId: selectedEdgeId.value,
+    selectedPathIndex: selectedPathIndex.value,
+  })
+}
+
+function applySnapshot(snapshot: VisualEditSnapshot) {
+  isRestoring.value = true
+  draft.value = snapshot.draft ? normalizeDetail(snapshot.draft) : null
+  editing.value = snapshot.editing ? normalizeDetail(snapshot.editing) : null
+  flowDetailsCache.value = { ...snapshot.flowDetailsCache }
+  canvasEndpointIds.value = [...snapshot.canvasEndpointIds]
+  selectedEdgeId.value = snapshot.selectedEdgeId
+  selectedPathIndex.value = snapshot.selectedPathIndex
+  boardKey.value += 1
+  void nextTick(() => {
+    isRestoring.value = false
+    syncHistoryUi()
+  })
+}
+
+function hasUnsavedWork(): boolean {
+  if (draft.value) return true
+  if (editing.value?.id) {
+    const baseline = flowDetailsCache.value[editing.value.id]
+    if (baseline && JSON.stringify(editing.value) !== JSON.stringify(baseline)) return true
+  }
+  return false
+}
+
+function scheduleLocalDraftSave() {
+  if (localDraftTimer) clearTimeout(localDraftTimer)
+  localDraftTimer = setTimeout(() => {
+    if (isRestoring.value || loading.value) return
+    if (!hasUnsavedWork()) {
+      clearLocalVisualDraft(assetId.value)
+      localDraftSavedAt.value = null
+      return
+    }
+    const savedAt = new Date().toISOString()
+    saveLocalVisualDraft({
+      assetId: assetId.value,
+      flowId: props.flowId,
+      savedAt,
+      snapshot: getSnapshot(),
+    })
+    localDraftSavedAt.value = savedAt
+  }, 800)
+}
+
+function runEditMutation(mutator: () => void) {
+  if (isRestoring.value || loading.value) {
+    mutator()
+    return
+  }
+  const before = getSnapshot()
+  mutator()
+  const after = getSnapshot()
+  if (JSON.stringify(before) === JSON.stringify(after)) return
+  editHistory.recordMutation(before, after)
+  syncHistoryUi()
+  scheduleLocalDraftSave()
+}
+
+function commitHistory() {
+  if (isRestoring.value || loading.value) return
+  editHistory.push(getSnapshot())
+  syncHistoryUi()
+  scheduleLocalDraftSave()
+}
+
+function scheduleHistoryCommit() {
+  if (historyDebounceTimer) clearTimeout(historyDebounceTimer)
+  historyDebounceTimer = setTimeout(() => {
+    commitHistory()
+  }, 400)
+}
+
+function undoEdit() {
+  const previous = editHistory.undo(getSnapshot())
+  if (!previous) return
+  applySnapshot(previous)
+  ElMessage.info('已撤销')
+}
+
+function redoEdit() {
+  const next = editHistory.redo(getSnapshot())
+  if (!next) return
+  applySnapshot(next)
+  ElMessage.info('已重做')
+}
+
+function clearWorkingDraftStorage() {
+  clearLocalVisualDraft(assetId.value)
+  localDraftSavedAt.value = null
+}
+
+function resetHistoryBaseline() {
+  editHistory.reset(getSnapshot())
+  syncHistoryUi()
+}
+
+async function offerLocalDraftRestore() {
+  const stored = loadLocalVisualDraft(assetId.value)
+  if (!stored?.snapshot) return
+  try {
+    await ElMessageBox.confirm(
+      `发现未发布的本地草稿（${formatDraftSavedAt(stored.savedAt)}）。恢复后可用撤销继续调整；发布保存后会清除草稿。`,
+      '恢复本地草稿',
+      {
+        confirmButtonText: '恢复草稿',
+        cancelButtonText: '丢弃草稿',
+        type: 'info',
+        distinguishCancelAndClose: true,
+      },
+    )
+    applySnapshot(stored.snapshot)
+    editHistory.reset(getSnapshot())
+    syncHistoryUi()
+    localDraftSavedAt.value = stored.savedAt
+    ElMessage.success('已恢复本地草稿')
+  } catch (action) {
+    if (action === 'cancel') {
+      clearWorkingDraftStorage()
+    }
+  }
+}
+
+function onEditKeydown(e: KeyboardEvent) {
+  const mod = e.metaKey || e.ctrlKey
+  if (!mod) return
+  const key = e.key.toLowerCase()
+  if (key === 'z' && !e.shiftKey) {
+    e.preventDefault()
+    undoEdit()
+  } else if (key === 'z' && e.shiftKey) {
+    e.preventDefault()
+    redoEdit()
+  } else if (key === 'y') {
+    e.preventDefault()
+    redoEdit()
+  }
+}
 
 const flowDetailsForBoard = computed(() => {
   const map = { ...flowDetailsCache.value }
@@ -209,6 +382,8 @@ async function load() {
     selectedEdgeId.value = nextSelected
     selectedPathIndex.value = 0
     boardKey.value += 1
+    resetHistoryBaseline()
+    await offerLocalDraftRestore()
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败')
   } finally {
@@ -256,15 +431,17 @@ function onConnect(sourceEndpointId: number, targetEndpointId: number) {
     selectedPathIndex.value = 0
     return
   }
-  const next = emptyFlow(assetId.value)
-  next.sourceEndpointId = sourceEndpointId
-  next.targetEndpointId = targetEndpointId
-  ensureWorkingPath(next)
-  draft.value = next
-  editing.value = null
-  selectedEdgeId.value = 'draft'
-  selectedPathIndex.value = 0
-  ensureEndpointsOnCanvas(sourceEndpointId, targetEndpointId)
+  runEditMutation(() => {
+    const next = emptyFlow(assetId.value)
+    next.sourceEndpointId = sourceEndpointId
+    next.targetEndpointId = targetEndpointId
+    ensureWorkingPath(next)
+    draft.value = next
+    editing.value = null
+    selectedEdgeId.value = 'draft'
+    selectedPathIndex.value = 0
+    ensureEndpointsOnCanvas(sourceEndpointId, targetEndpointId)
+  })
   ElMessage({
     message: buildNewFlowNotice(sourceEndpointId, targetEndpointId),
     type: 'warning',
@@ -322,19 +499,23 @@ function addEndpointToCanvas() {
     ElMessage.warning('请先选择落点')
     return
   }
-  ensureEndpointsOnCanvas(addEndpointId.value)
-  addEndpointId.value = null
+  runEditMutation(() => {
+    ensureEndpointsOnCanvas(addEndpointId.value!)
+    addEndpointId.value = null
+  })
   ElMessage.success('已加入画布（仅展示落点，不会自动创建流向；需从源落点拖线到目标落点）')
 }
 
 function addPath() {
   const flow = panelFlow.value
   if (!flow) return
-  ensureWorkingPath(flow)
-  const next = emptyPath(flow.paths.length)
-  next.name = `路径 ${flow.paths.length + 1}`
-  flow.paths.push(next)
-  selectedPathIndex.value = flow.paths.length - 1
+  runEditMutation(() => {
+    ensureWorkingPath(flow)
+    const next = emptyPath(flow.paths.length)
+    next.name = `路径 ${flow.paths.length + 1}`
+    flow.paths.push(next)
+    selectedPathIndex.value = flow.paths.length - 1
+  })
 }
 
 function removePath() {
@@ -343,11 +524,13 @@ function removePath() {
     ElMessage.warning('至少保留一条路径')
     return
   }
-  flow.paths.splice(selectedPathIndex.value, 1)
-  flow.paths.forEach((p, i) => {
-    p.sortOrder = i
+  runEditMutation(() => {
+    flow.paths.splice(selectedPathIndex.value, 1)
+    flow.paths.forEach((p, i) => {
+      p.sortOrder = i
+    })
+    selectedPathIndex.value = Math.min(selectedPathIndex.value, flow.paths.length - 1)
   })
-  selectedPathIndex.value = Math.min(selectedPathIndex.value, flow.paths.length - 1)
 }
 
 function onPathTabChange(name: string | number) {
@@ -357,8 +540,10 @@ function onPathTabChange(name: string | number) {
 function addStep() {
   const path = activePath.value
   if (!path) return
-  const nextSeq = path.steps.length ? Math.max(...path.steps.map((s) => s.seq)) + 1 : 1
-  path.steps.push(emptyStep(nextSeq))
+  runEditMutation(() => {
+    const nextSeq = path.steps.length ? Math.max(...path.steps.map((s) => s.seq)) + 1 : 1
+    path.steps.push(emptyStep(nextSeq))
+  })
 }
 
 function removeStep(index: number) {
@@ -368,21 +553,25 @@ function removeStep(index: number) {
     ElMessage.warning('至少保留一个步骤')
     return
   }
-  path.steps.splice(index, 1)
-  path.steps.forEach((s, i) => {
-    s.seq = i + 1
+  runEditMutation(() => {
+    path.steps.splice(index, 1)
+    path.steps.forEach((s, i) => {
+      s.seq = i + 1
+    })
   })
 }
 
 function onExecutorChange(stepIndex: number, executorId: number | null) {
   const path = activePath.value
   if (!path) return
-  const step = path.steps[stepIndex]
-  step.executorId = executorId
-  if (!step.hostId && executorId) {
-    const ex = executors.value.find((e) => e.id === executorId)
-    if (ex?.defaultHostId) step.hostId = ex.defaultHostId
-  }
+  runEditMutation(() => {
+    const step = path.steps[stepIndex]
+    step.executorId = executorId
+    if (!step.hostId && executorId) {
+      const ex = executors.value.find((e) => e.id === executorId)
+      if (ex?.defaultHostId) step.hostId = ex.defaultHostId
+    }
+  })
 }
 
 async function savePanel() {
@@ -417,6 +606,8 @@ async function savePanel() {
       editing.value = normalizeDetail(created)
       if (created.id) flowDetailsCache.value[created.id] = editing.value
       selectedPathIndex.value = Math.min(selectedPathIndex.value, editing.value.paths.length - 1)
+      clearWorkingDraftStorage()
+      resetHistoryBaseline()
     } else if (flow.id) {
       const updated = await updateFlow(flow.id, payloadBase)
       ElMessage.success('已保存')
@@ -424,6 +615,8 @@ async function savePanel() {
       editing.value = normalizeDetail(updated)
       if (updated.id) flowDetailsCache.value[updated.id] = editing.value
       selectedPathIndex.value = Math.min(selectedPathIndex.value, editing.value.paths.length - 1)
+      clearWorkingDraftStorage()
+      resetHistoryBaseline()
     }
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败')
@@ -445,8 +638,10 @@ async function removePanelFlow() {
   const flow = panelFlow.value
   if (!flow) return
   if (isDraft.value) {
-    draft.value = null
-    selectedEdgeId.value = null
+    runEditMutation(() => {
+      draft.value = null
+      selectedEdgeId.value = null
+    })
     return
   }
   if (!flow.id) return
@@ -457,6 +652,8 @@ async function removePanelFlow() {
     editing.value = null
     selectedEdgeId.value = null
     await refreshFlows()
+    clearWorkingDraftStorage()
+    resetHistoryBaseline()
   } catch (e) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : '删除失败')
@@ -465,8 +662,10 @@ async function removePanelFlow() {
 }
 
 function discardDraft() {
-  draft.value = null
-  if (selectedEdgeId.value === 'draft') selectedEdgeId.value = null
+  runEditMutation(() => {
+    draft.value = null
+    if (selectedEdgeId.value === 'draft') selectedEdgeId.value = null
+  })
 }
 
 function openFormEditor() {
@@ -519,11 +718,31 @@ const draftNotice = computed(() => {
   return buildNewFlowNotice(draft.value.sourceEndpointId, draft.value.targetEndpointId)
 })
 
-onMounted(load)
+onMounted(() => {
+  window.addEventListener('keydown', onEditKeydown)
+  void load()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onEditKeydown)
+  if (historyDebounceTimer) clearTimeout(historyDebounceTimer)
+  if (localDraftTimer) clearTimeout(localDraftTimer)
+})
+
+watch(
+  [draft, editing, canvasEndpointIds],
+  () => {
+    if (isRestoring.value || loading.value) return
+    scheduleHistoryCommit()
+  },
+  { deep: true },
+)
+
 watch(
   () => [props.id, props.flowId],
   () => {
     draft.value = null
+    clearWorkingDraftStorage()
     void load()
   },
 )
@@ -540,6 +759,11 @@ watch(
         </p>
       </div>
       <div class="actions">
+        <el-button :disabled="!canUndo" @click="undoEdit">撤销</el-button>
+        <el-button :disabled="!canRedo" @click="redoEdit">重做</el-button>
+        <span v-if="localDraftSavedAt" class="draft-autosave">
+          草稿已自动保存 · {{ formatDraftSavedAt(localDraftSavedAt) }}
+        </span>
         <el-button link type="primary" @click="openGuide">配置说明</el-button>
         <el-button @click="openFormEditor">表单编辑</el-button>
         <el-button @click="zoomOut">缩小</el-button>
@@ -825,6 +1049,13 @@ h1 {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+.draft-autosave {
+  font-size: 12px;
+  color: var(--muted-soft);
+  padding: 0 4px;
 }
 
 .card {
