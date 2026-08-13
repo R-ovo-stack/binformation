@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Graph } from '@antv/x6'
+import { Export, Graph } from '@antv/x6'
 import type { PanoramaEdge, PanoramaGraph } from '@/types/panorama'
 import { dataTypeLabel, panoramaEdgeStroke } from '@/types/panorama'
 import { layoutPanoramaGraph, panoramaNodeId } from '@/utils/panoramaLayout'
@@ -59,10 +59,11 @@ function render() {
       maxScale: 2.5,
       zoomAtMousePosition: true,
     },
-    background: { color: '#f4f7f5' },
+    background: { color: '#f7fafb' },
     grid: { visible: true, type: 'dot', args: { color: '#d7e0db', thickness: 1 } },
     connecting: { router: { name: 'orth' }, connector: { name: 'rounded', args: { radius: 8 } } },
   })
+  graphInstance.use(new Export())
 
   graphInstance.on('node:click', ({ node }) => {
     const id = Number(String(node.id).replace(/^asset-/, ''))
@@ -185,7 +186,28 @@ function zoomOut() {
   graphInstance?.zoom(-0.2)
 }
 
-defineExpose({ zoomToFit, zoomIn, zoomOut, render })
+function exportPng(fileName = 'lineage-panorama.png') {
+  if (!graphInstance) return
+  const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
+  const ratio = Math.min(Math.max(Math.round(dpr * 2), 3), 4)
+  graphInstance.toPNG(
+    (dataUri) => {
+      const link = document.createElement('a')
+      link.download = fileName
+      link.href = dataUri
+      link.click()
+    },
+    {
+      backgroundColor: '#f7fafb',
+      padding: 32,
+      quality: 1,
+      ratio,
+      copyStyles: true,
+    },
+  )
+}
+
+defineExpose({ zoomToFit, zoomIn, zoomOut, exportPng, render })
 
 watch(
   () => [props.graph, props.selectedAssetId] as const,
@@ -210,6 +232,7 @@ onBeforeUnmount(() => destroyGraph())
 
 <style scoped>
 .panorama-wrap {
+  position: relative;
   width: 100%;
   height: 100%;
   min-height: 520px;

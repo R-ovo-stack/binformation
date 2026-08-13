@@ -427,7 +427,7 @@ function zoomOut() {
   graphInstance?.zoom(-0.2)
 }
 
-function exportPng() {
+function exportPng(fileName?: string) {
   if (!graphInstance) return
   // Scale canvas export above CSS pixels so text/edges stay sharp on retina displays.
   const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
@@ -435,7 +435,7 @@ function exportPng() {
   graphInstance.toPNG(
     (dataUri) => {
       const link = document.createElement('a')
-      link.download = `${props.graph?.assetCode ?? 'flow'}-graph.png`
+      link.download = fileName ?? `${props.graph?.assetCode ?? 'flow'}-graph.png`
       link.href = dataUri
       link.click()
     },

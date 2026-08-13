@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { listAssets } from '@/api/asset'
@@ -16,6 +16,7 @@ import type { LayoutMode } from '@/utils/graphLayout'
 const router = useRouter()
 const activeTab = ref<'lineage' | 'technical'>('lineage')
 const loading = ref(false)
+const immersive = ref(false)
 
 const lineageGraph = ref<PanoramaGraph | null>(null)
 const includeEndpointLinks = ref(true)
@@ -36,6 +37,10 @@ const detailAssetId = computed(() => {
   if (selectedFlowEdge.value?.fromAssetId) return selectedFlowEdge.value.fromAssetId
   return null
 })
+
+const canExport = computed(() =>
+  activeTab.value === 'lineage' ? Boolean(lineageGraph.value) : Boolean(technicalGraph.value),
+)
 
 async function loadLineage() {
   loading.value = true
@@ -108,19 +113,57 @@ function zoomOut() {
   else technicalCanvasRef.value?.zoomOut()
 }
 
-watch(activeTab, () => loadActive())
+function exportPng() {
+  if (activeTab.value === 'lineage') {
+    lineageCanvasRef.value?.exportPng('lineage-panorama.png')
+    return
+  }
+  technicalCanvasRef.value?.exportPng('technical-panorama.png')
+}
+
+async function enterImmersive() {
+  immersive.value = true
+  document.body.classList.add('panorama-immersive-lock')
+  await nextTick()
+  zoomToFit()
+}
+
+function exitImmersive() {
+  if (!immersive.value) return
+  immersive.value = false
+  document.body.classList.remove('panorama-immersive-lock')
+  void nextTick().then(() => zoomToFit())
+}
+
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && immersive.value) {
+    e.preventDefault()
+    exitImmersive()
+  }
+}
+
+watch(activeTab, () => {
+  exitImmersive()
+  loadActive()
+})
 
 onMounted(async () => {
+  window.addEventListener('keydown', onKeydown)
   await loadAssets()
   await loadLineage()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+  document.body.classList.remove('panorama-immersive-lock')
 })
 </script>
 
 <template>
-  <div class="page" v-loading="loading">
-    <AppNav />
+  <div class="page" :class="{ immersive }" v-loading="loading">
+    <AppNav v-if="!immersive" />
 
-    <header class="topbar">
+    <header v-if="!immersive" class="topbar">
       <div>
         <el-button link @click="router.push('/')">← 返回资产列表</el-button>
         <h1>资产全景图</h1>
@@ -130,6 +173,10 @@ onMounted(async () => {
       </div>
       <div class="actions">
         <el-button link type="primary" @click="openGuide">流向配置说明</el-button>
+        <el-button :disabled="!canExport" @click="exportPng">导出高清 PNG</el-button>
+        <el-button type="primary" plain :disabled="!canExport" @click="enterImmersive">
+          沉浸式查看
+        </el-button>
         <el-button @click="zoomOut">缩小</el-button>
         <el-button @click="zoomIn">放大</el-button>
         <el-button @click="zoomToFit">适配</el-button>
@@ -137,16 +184,30 @@ onMounted(async () => {
       </div>
     </header>
 
-    <el-tabs v-model="activeTab" class="panorama-tabs">
+    <div v-else class="immersive-bar">
+      <div class="immersive-title">
+        <strong>{{ activeTab === 'technical' ? '技术全景' : '血缘全景' }} · 沉浸式查看</strong>
+        <span>Esc 退出</span>
+      </div>
+      <div class="actions">
+        <el-button :disabled="!canExport" @click="exportPng">导出高清 PNG</el-button>
+        <el-button @click="zoomOut">缩小</el-button>
+        <el-button @click="zoomIn">放大</el-button>
+        <el-button @click="zoomToFit">适配</el-button>
+        <el-button type="primary" @click="exitImmersive">退出沉浸</el-button>
+      </div>
+    </div>
+
+    <el-tabs v-model="activeTab" class="panorama-tabs" :class="{ 'tabs-immersive': immersive }">
       <el-tab-pane label="血缘视角" name="lineage">
-        <div class="toolbar card">
+        <div v-if="!immersive" class="toolbar card">
           <el-switch v-model="includeEndpointLinks" active-text="含落点衔接" @change="loadLineage" />
           <span class="tip" v-if="lineageGraph">
             共 {{ lineageGraph.assetCount }} 个资产 · {{ lineageGraph.edgeCount }} 条跨资产关系
           </span>
         </div>
 
-        <div class="workspace">
+        <div class="workspace" :class="{ 'workspace-immersive': immersive }">
           <PanoramaGraphCanvas
             ref="lineageCanvasRef"
             class="canvas-panel"
@@ -156,7 +217,7 @@ onMounted(async () => {
             @select-edge="selectedLineageEdge = $event; selectedAssetId = null"
           />
 
-          <aside class="side card">
+          <aside v-if="!immersive" class="side card">
             <template v-if="selectedAssetId && lineageGraph">
               <h2>资产</h2>
               <template v-for="n in lineageGraph.nodes" :key="n.assetId">
@@ -198,7 +259,7 @@ onMounted(async () => {
       </el-tab-pane>
 
       <el-tab-pane label="技术全景" name="technical">
-        <div class="toolbar card technical-toolbar">
+        <div v-if="!immersive" class="toolbar card technical-toolbar">
           <el-select
             v-model="selectedAssetIds"
             multiple
@@ -232,11 +293,11 @@ onMounted(async () => {
           </span>
         </div>
 
-        <p class="mode-tip">
+        <p v-if="!immersive" class="mode-tip">
           合并所选资产的全部主流向；边标签含所属资产名。未选资产时默认包含全部。
         </p>
 
-        <div class="workspace">
+        <div class="workspace" :class="{ 'workspace-immersive': immersive }">
           <FlowGraphCanvas
             ref="technicalCanvasRef"
             :key="`${layoutMode}-${selectedAssetIds.join(',')}-${includeAuxiliary}`"
@@ -247,6 +308,7 @@ onMounted(async () => {
           />
 
           <EdgeDetailPanel
+            v-if="!immersive"
             class="side card"
             :edge="selectedFlowEdge"
             :asset-id="detailAssetId"
@@ -262,6 +324,53 @@ onMounted(async () => {
   min-height: 100vh;
   padding: 14px clamp(10px, 1.2vw, 16px) 20px;
   box-sizing: border-box;
+}
+
+.page.immersive {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  padding: 10px 12px 12px;
+  background:
+    radial-gradient(ellipse 80% 50% at 10% -10%, rgba(13, 148, 136, 0.16), transparent 50%),
+    linear-gradient(165deg, #eef3f6 0%, #e6edf2 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 100vh;
+  animation: immersive-in 0.28s ease both;
+}
+
+.immersive-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-panel);
+  backdrop-filter: blur(10px);
+}
+
+.immersive-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.immersive-title strong {
+  font-family: var(--font-display);
+  font-size: 15px;
+  letter-spacing: -0.02em;
+}
+
+.immersive-title span {
+  font-size: 12px;
+  color: var(--muted-soft);
 }
 
 .topbar {
@@ -291,8 +400,29 @@ h1 {
   flex-wrap: wrap;
 }
 
+.panorama-tabs {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .panorama-tabs :deep(.el-tabs__header) {
   margin-bottom: 12px;
+}
+
+.panorama-tabs :deep(.el-tabs__content),
+.panorama-tabs :deep(.el-tab-pane) {
+  height: 100%;
+}
+
+.tabs-immersive :deep(.el-tabs__header) {
+  display: none;
+}
+
+.tabs-immersive :deep(.el-tabs__content) {
+  flex: 1;
+  min-height: 0;
 }
 
 .card {
@@ -334,8 +464,20 @@ h1 {
   min-height: 560px;
 }
 
+.workspace-immersive {
+  grid-template-columns: 1fr;
+  flex: 1;
+  min-height: 0;
+  height: calc(100vh - 84px);
+}
+
 .canvas-panel {
   min-height: 560px;
+}
+
+.workspace-immersive .canvas-panel {
+  min-height: 0;
+  height: 100%;
 }
 
 .side {
@@ -380,9 +522,26 @@ h1 {
   line-height: 1.6;
 }
 
+@keyframes immersive-in {
+  from {
+    opacity: 0.6;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 @media (max-width: 960px) {
   .workspace {
     grid-template-columns: 1fr;
   }
+}
+</style>
+
+<style>
+body.panorama-immersive-lock {
+  overflow: hidden;
 }
 </style>
