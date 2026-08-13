@@ -11,5 +11,6 @@ import { RouterView } from 'vue-router'
 <style scoped>
 .app-shell {
   min-height: 100vh;
+  position: relative;
 }
 </style>

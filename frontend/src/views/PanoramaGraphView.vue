@@ -280,7 +280,7 @@ h1 {
 
 .meta {
   margin: 4px 0 0;
-  color: #64748b;
+  color: var(--muted);
   font-size: 13px;
   max-width: 640px;
 }
@@ -296,9 +296,10 @@ h1 {
 }
 
 .card {
-  background: #fff;
-  border: 1px solid #d5e0db;
-  border-radius: 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-panel);
 }
 
 .toolbar {
@@ -317,13 +318,13 @@ h1 {
 
 .tip {
   font-size: 13px;
-  color: #334155;
+  color: var(--ink-soft);
 }
 
 .mode-tip {
   margin: 0 0 12px;
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--muted-soft);
 }
 
 .workspace {
@@ -356,13 +357,13 @@ h1 {
 
 .detail dt {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--muted-soft);
 }
 
 .detail dd {
   margin: 2px 0 0;
   font-size: 13px;
-  color: #334155;
+  color: var(--ink-soft);
   word-break: break-all;
 }
 
@@ -375,7 +376,7 @@ h1 {
 .help {
   margin: 0;
   font-size: 13px;
-  color: #64748b;
+  color: var(--muted);
   line-height: 1.6;
 }
 

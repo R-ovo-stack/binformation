@@ -119,7 +119,7 @@ function render() {
           fill: '#0f172a',
           fontSize: 12,
           fontWeight: 600,
-          fontFamily: 'IBM Plex Sans, sans-serif',
+          fontFamily: 'Source Sans 3, sans-serif',
           textWrap: { width: node.width - 16, height: node.height - 12, ellipsis: true },
         },
       },
@@ -141,7 +141,7 @@ function render() {
               text: isDerive ? '派生' : '落点衔接',
               fill: '#0f172a',
               fontSize: 10,
-              fontFamily: 'IBM Plex Sans, sans-serif',
+              fontFamily: 'Source Sans 3, sans-serif',
             },
             body: {
               fill: isDerive ? '#ecfdf5' : '#eff6ff',
@@ -213,10 +213,10 @@ onBeforeUnmount(() => destroyGraph())
   width: 100%;
   height: 100%;
   min-height: 520px;
-  border: 1px solid #d5e0db;
-  border-radius: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
   overflow: hidden;
-  background: #f4f7f5;
+  background: linear-gradient(180deg, #f7fafb 0%, #eef3f6 100%);
 }
 
 .canvas {
@@ -240,7 +240,7 @@ onBeforeUnmount(() => destroyGraph())
   border: 1px solid #cbd5e1;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.95);
-  color: #0f172a;
+  color: var(--ink);
   font-size: 22px;
   line-height: 1;
   cursor: pointer;
@@ -248,6 +248,6 @@ onBeforeUnmount(() => destroyGraph())
 }
 
 .zoom-controls button:active {
-  background: #ecf4f1;
+  background: var(--accent-soft);
 }
 </style>

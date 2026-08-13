@@ -134,13 +134,13 @@ function onUpdate(value: number | string | null | undefined) {
 .type {
   flex-shrink: 0;
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--muted-soft);
 }
 
 .path {
   margin: 6px 0 0;
   font-size: 12px;
-  color: #64748b;
+  color: var(--muted);
   line-height: 1.4;
   word-break: break-all;
 }

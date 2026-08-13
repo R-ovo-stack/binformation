@@ -817,7 +817,7 @@ h1 {
 
 .meta {
   margin: 4px 0 0;
-  color: #64748b;
+  color: var(--muted);
   font-size: 13px;
 }
 
@@ -828,9 +828,10 @@ h1 {
 }
 
 .card {
-  background: #fff;
-  border: 1px solid #d5e0db;
-  border-radius: 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-panel);
 }
 
 .toolbar {
@@ -843,7 +844,7 @@ h1 {
 
 .toolbar-label {
   font-size: 13px;
-  color: #334155;
+  color: var(--ink-soft);
   white-space: nowrap;
 }
 
@@ -853,7 +854,7 @@ h1 {
 
 .toolbar-tip {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--muted-soft);
 }
 
 .workspace {
@@ -904,13 +905,13 @@ h1 {
 
 .pair dt {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--muted-soft);
 }
 
 .pair dd {
   margin: 2px 0 0;
   font-size: 12px;
-  color: #334155;
+  color: var(--ink-soft);
   line-height: 1.4;
   word-break: break-all;
 }
@@ -965,7 +966,7 @@ h1 {
 .steps-tip {
   margin: 0 0 10px;
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--muted-soft);
 }
 
 .step {
@@ -991,7 +992,7 @@ h1 {
 
 .empty-hint {
   margin: 12px 0 0;
-  color: #64748b;
+  color: var(--muted);
   font-size: 13px;
   line-height: 1.6;
 }

@@ -109,7 +109,7 @@ h1 {
 
 .meta {
   margin: 4px 0 0;
-  color: #64748b;
+  color: var(--muted);
   font-size: 13px;
 }
 
@@ -119,7 +119,10 @@ h1 {
 }
 
 .table {
-  background: #fff;
-  border-radius: 12px;
+  background: var(--surface-solid);
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
 }
 </style>

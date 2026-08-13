@@ -303,7 +303,7 @@ function paintNodes(positioned: PositionedNode[]) {
           fill: '#0f172a',
           fontSize: 13,
           fontWeight: 600,
-          fontFamily: 'IBM Plex Sans, sans-serif',
+          fontFamily: 'Source Sans 3, sans-serif',
           refX: 14,
           refY: 18,
           textAnchor: 'start',
@@ -313,7 +313,7 @@ function paintNodes(positioned: PositionedNode[]) {
           text: node.type === 'HOST' ? '主机' : 'Kafka 集群',
           fill: '#64748b',
           fontSize: 11,
-          fontFamily: 'IBM Plex Sans, sans-serif',
+          fontFamily: 'Source Sans 3, sans-serif',
           refX: '100%',
           refX2: -12,
           refY: 18,
@@ -376,7 +376,7 @@ function paintNodes(positioned: PositionedNode[]) {
               : `${node.label}\n${endpointTypeLabel(node.type)}`,
           fill: '#0f172a',
           fontSize: isBrokerChip ? 11 : 12,
-          fontFamily: 'IBM Plex Sans, sans-serif',
+          fontFamily: 'Source Sans 3, sans-serif',
           textWrap: {
             width: w - (isBrokerChip ? 8 : 16),
             height: h - (isBrokerChip ? 6 : 12),
@@ -430,7 +430,7 @@ function paintFlowEdges(viewGraph: AssetGraph) {
               text: isDraft && edge.id === flowId ? edgeLabelText(boardEdge!) : edge.label,
               fill: '#0f172a',
               fontSize: 11,
-              fontFamily: 'IBM Plex Sans, sans-serif',
+              fontFamily: 'Source Sans 3, sans-serif',
               pointerEvents: 'none',
             },
             body: {
@@ -487,7 +487,7 @@ function paintRelations(viewGraph: AssetGraph) {
               text: rel.label || rel.type,
               fill: isRunsOn ? '#b45309' : '#64748b',
               fontSize: 10,
-              fontFamily: 'IBM Plex Sans, sans-serif',
+              fontFamily: 'Source Sans 3, sans-serif',
               pointerEvents: 'none',
             },
             body: {
@@ -692,10 +692,10 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   min-height: 520px;
-  border: 1px solid #d5e0db;
-  border-radius: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
   overflow: hidden;
-  background: #f4f7f5;
+  background: linear-gradient(180deg, #f7fafb 0%, #eef3f6 100%);
 }
 
 .canvas {
@@ -711,8 +711,8 @@ onBeforeUnmount(() => {
   padding: 6px 10px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.92);
-  border: 1px solid #d5e0db;
-  color: #64748b;
+  border: 1px solid var(--line);
+  color: var(--muted);
   font-size: 12px;
   pointer-events: none;
 }
@@ -733,7 +733,7 @@ onBeforeUnmount(() => {
   border: 1px solid #cbd5e1;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.95);
-  color: #0f172a;
+  color: var(--ink);
   font-size: 22px;
   line-height: 1;
   cursor: pointer;
@@ -741,7 +741,7 @@ onBeforeUnmount(() => {
 }
 
 .zoom-controls button:active {
-  background: #ecf4f1;
+  background: var(--accent-soft);
 }
 
 :deep(.x6-port-body) {

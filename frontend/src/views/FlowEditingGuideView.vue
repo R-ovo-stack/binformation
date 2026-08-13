@@ -47,14 +47,14 @@ h1 {
 
 .meta {
   margin: 6px 0 0;
-  color: #64748b;
+  color: var(--muted);
   font-size: 13px;
 }
 
 .doc-card {
-  background: #fff;
-  border: 1px solid #d5e0db;
-  border-radius: 12px;
+  background: var(--surface-solid);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
   padding: 28px 32px 36px;
 }
 

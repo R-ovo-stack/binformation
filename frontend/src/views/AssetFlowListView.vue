@@ -159,12 +159,12 @@ onMounted(load)
 h1 {
   margin: 4px 0 0;
   font-size: 22px;
-  color: #0f172a;
+  color: var(--ink);
 }
 
 .meta {
   margin: 4px 0 0;
-  color: #64748b;
+  color: var(--muted);
   font-size: 13px;
 }
 
@@ -176,12 +176,12 @@ h1 {
 
 .ep {
   font-size: 12px;
-  color: #334155;
+  color: var(--ink-soft);
   line-height: 1.4;
 }
 
 .arrow {
-  color: #94a3b8;
+  color: var(--muted-soft);
   font-size: 12px;
   margin: 2px 0;
 }

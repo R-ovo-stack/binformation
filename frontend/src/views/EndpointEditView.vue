@@ -358,15 +358,17 @@ h1 {
 }
 
 .card {
-  background: #fff;
-  border: 1px solid #d5e0db;
-  border-radius: 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-panel);
   padding: 20px;
+  backdrop-filter: blur(8px);
 }
 
 .hint {
   margin: 6px 0 0;
   font-size: 12px;
-  color: #64748b;
+  color: var(--muted);
 }
 </style>

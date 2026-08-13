@@ -230,12 +230,12 @@ onMounted(() => {
 h1 {
   margin: 4px 0 0;
   font-size: 22px;
-  color: #0f172a;
+  color: var(--ink);
 }
 
 .meta {
   margin: 4px 0 0;
-  color: #64748b;
+  color: var(--muted);
   font-size: 13px;
 }
 
@@ -260,22 +260,24 @@ h1 {
 }
 
 .derivations {
-  background: #fff;
-  border: 1px solid #d5e0db;
-  border-radius: 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-panel);
   padding: 12px 14px 16px;
+  backdrop-filter: blur(8px);
 }
 
 .derivations h2 {
   margin: 0 0 10px;
   font-size: 15px;
-  color: #0f172a;
+  color: var(--ink);
 }
 
 .mobile-tip {
   display: none;
   margin: 0;
-  color: #64748b;
+  color: var(--muted);
   font-size: 12px;
 }
 

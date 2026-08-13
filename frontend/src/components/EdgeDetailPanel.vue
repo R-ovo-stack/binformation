@@ -101,16 +101,18 @@ function editFlowForm() {
 .panel {
   height: 100%;
   padding: 16px;
-  background: #fff;
-  border: 1px solid #d5e0db;
-  border-radius: 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-panel);
   overflow: auto;
+  backdrop-filter: blur(8px);
 }
 
 h3 {
   margin: 0;
   font-size: 16px;
-  color: #0f172a;
+  color: var(--ink);
 }
 
 .head {
@@ -124,7 +126,7 @@ h3 {
 h4 {
   margin: 18px 0 10px;
   font-size: 13px;
-  color: #334155;
+  color: var(--ink-soft);
 }
 
 dl {
@@ -141,12 +143,12 @@ dl > div {
 }
 
 dt {
-  color: #64748b;
+  color: var(--muted);
 }
 
 dd {
   margin: 0;
-  color: #0f172a;
+  color: var(--ink);
 }
 
 .path {
@@ -175,7 +177,7 @@ li {
 
 .step-title {
   font-size: 13px;
-  color: #0f172a;
+  color: var(--ink);
 }
 
 .step-meta,
@@ -183,6 +185,6 @@ li {
 .hint,
 .empty {
   font-size: 12px;
-  color: #64748b;
+  color: var(--muted);
 }
 </style>

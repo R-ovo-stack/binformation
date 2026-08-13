@@ -252,13 +252,13 @@ watch(
 
 .crumb {
   margin: 0 0 8px;
-  color: #64748b;
+  color: var(--muted);
   font-size: 12px;
 }
 
 .tip {
   margin: 0 0 14px;
-  color: #94a3b8;
+  color: var(--muted-soft);
   font-size: 12px;
   line-height: 1.45;
 }

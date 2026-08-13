@@ -112,13 +112,13 @@ onMounted(load)
 <template>
   <div class="page">
     <AppNav />
-    <header class="hero">
+    <header class="page-hero">
       <div>
-        <p class="brand">数据中心台账</p>
-        <h1>数据资产</h1>
-        <p class="sub">维护数据资产、落点与流向，或一键生成流向图。</p>
+        <p class="page-brand">数据中心台账</p>
+        <h1 class="page-title">数据资产</h1>
+        <p class="page-sub">维护数据资产、落点与流向，或一键生成流向图。</p>
       </div>
-      <div class="hero-actions">
+      <div class="page-actions">
         <el-button @click="router.push('/panorama')">资产全景图</el-button>
         <el-button :loading="exportingJson" @click="exportLedger('json')">导出 JSON</el-button>
         <el-button :loading="exportingZip" @click="exportLedger('zip')">导出 CSV 包</el-button>
@@ -127,7 +127,7 @@ onMounted(load)
       </div>
     </header>
 
-    <section class="import-card">
+    <section class="import-card page-panel">
       <div>
         <h2>落点导入</h2>
         <p class="import-sub">下载 CSV 模板，按 parentPath 填写层级后批量导入全部落点。</p>
@@ -149,7 +149,7 @@ onMounted(load)
       v-loading="loading"
       :data="assets"
       stripe
-      class="table"
+      class="page-table"
       empty-text="暂无资产，请先启动后端并确认样例数据已加载"
       @row-click="openGraph"
     >
@@ -181,70 +181,28 @@ onMounted(load)
 </template>
 
 <style scoped>
-.page {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 28px 20px 48px;
-}
-
-.hero {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 16px;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-}
-
-.hero-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.brand {
-  margin: 0 0 6px;
-  font-family: 'Fraunces', 'IBM Plex Serif', serif;
-  font-size: 28px;
-  font-weight: 600;
-  color: #0f3d36;
-  letter-spacing: 0.02em;
-}
-
-h1 {
-  margin: 0;
-  font-size: 20px;
-  color: #0f172a;
-}
-
-.sub {
-  margin: 6px 0 0;
-  color: #64748b;
-  font-size: 14px;
-}
-
 .import-card {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 16px;
   margin-bottom: 20px;
-  padding: 16px 18px;
-  border: 1px solid #dbeafe;
-  border-radius: 12px;
-  background: linear-gradient(180deg, #f8fbff 0%, #f1f5f9 100%);
+  padding: 18px 20px;
   flex-wrap: wrap;
+  background:
+    linear-gradient(135deg, rgba(13, 148, 136, 0.08), transparent 42%),
+    var(--surface-raised);
 }
 
 .import-card h2 {
   margin: 0;
-  font-size: 16px;
-  color: #0f172a;
+  font-size: 1rem;
+  font-weight: 650;
 }
 
 .import-sub {
   margin: 6px 0 0;
-  color: #64748b;
+  color: var(--muted);
   font-size: 13px;
 }
 
@@ -252,12 +210,6 @@ h1 {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-}
-
-.table {
-  width: 100%;
-  border-radius: 12px;
-  overflow: hidden;
 }
 
 :deep(.el-table__row) {

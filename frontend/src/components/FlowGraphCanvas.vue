@@ -193,7 +193,7 @@ async function render() {
             fill: '#0f172a',
             fontSize: 13,
             fontWeight: 600,
-            fontFamily: 'IBM Plex Sans, sans-serif',
+            fontFamily: 'Source Sans 3, sans-serif',
             refX: 14,
             refY: 18,
             textAnchor: 'start',
@@ -203,7 +203,7 @@ async function render() {
             text: node.type === 'HOST' ? '主机' : 'Kafka 集群',
             fill: '#64748b',
             fontSize: 11,
-            fontFamily: 'IBM Plex Sans, sans-serif',
+            fontFamily: 'Source Sans 3, sans-serif',
             refX: '100%',
             refX2: -12,
             refY: 18,
@@ -273,7 +273,7 @@ async function render() {
                 : `${node.label}\n${endpointTypeLabel(node.type)}`,
             fill: '#0f172a',
             fontSize: isBrokerChip ? 11 : 12,
-            fontFamily: 'IBM Plex Sans, sans-serif',
+            fontFamily: 'Source Sans 3, sans-serif',
             textWrap: {
               width: w - (isBrokerChip ? 8 : 16),
               height: h - (isBrokerChip ? 6 : 12),
@@ -306,7 +306,7 @@ async function render() {
                 text: edge.label,
                 fill: '#0f172a',
                 fontSize: 11,
-                fontFamily: 'IBM Plex Sans, sans-serif',
+                fontFamily: 'Source Sans 3, sans-serif',
                 pointerEvents: 'none',
               },
               body: {
@@ -367,7 +367,7 @@ async function render() {
                 text: rel.label || rel.type,
                 fill: isRunsOn ? '#b45309' : '#64748b',
                 fontSize: 10,
-                fontFamily: 'IBM Plex Sans, sans-serif',
+                fontFamily: 'Source Sans 3, sans-serif',
                 pointerEvents: 'none',
               },
               body: {
@@ -501,10 +501,10 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   min-height: 520px;
-  border: 1px solid #d5e0db;
-  border-radius: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
   overflow: hidden;
-  background: #f4f7f5;
+  background: linear-gradient(180deg, #f7fafb 0%, #eef3f6 100%);
   touch-action: none;
 }
 
@@ -530,14 +530,14 @@ onBeforeUnmount(() => {
   border: 1px solid #cbd5e1;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.95);
-  color: #0f172a;
+  color: var(--ink);
   font-size: 22px;
   line-height: 1;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
 }
 
 .zoom-controls button:active {
-  background: #ecf4f1;
+  background: var(--accent-soft);
 }
 
 .overlay {
@@ -547,7 +547,7 @@ onBeforeUnmount(() => {
   display: grid;
   place-items: center;
   background: rgba(244, 247, 245, 0.72);
-  color: #0f172a;
+  color: var(--ink);
   font-size: 14px;
 }
 

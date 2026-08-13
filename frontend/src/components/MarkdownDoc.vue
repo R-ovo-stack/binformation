@@ -83,7 +83,7 @@ watch(
   margin: 0 0 20px;
   font-size: 26px;
   line-height: 1.3;
-  color: #0f172a;
+  color: var(--ink);
   border-bottom: 1px solid #e2e8f0;
   padding-bottom: 12px;
 }
@@ -91,13 +91,13 @@ watch(
 .markdown-body :deep(h2) {
   margin: 32px 0 12px;
   font-size: 20px;
-  color: #0f172a;
+  color: var(--ink);
 }
 
 .markdown-body :deep(h3) {
   margin: 24px 0 8px;
   font-size: 16px;
-  color: #334155;
+  color: var(--ink-soft);
 }
 
 .markdown-body :deep(p) {
@@ -131,7 +131,7 @@ watch(
 .markdown-body :deep(th) {
   background: #f8fafc;
   font-weight: 600;
-  color: #334155;
+  color: var(--ink-soft);
 }
 
 .markdown-body :deep(tr:nth-child(even) td) {
@@ -143,11 +143,11 @@ watch(
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 0.92em;
-  color: #0f766e;
+  color: var(--accent-deep);
 }
 
 .markdown-body :deep(pre) {
-  background: #0f172a;
+  background: var(--ink);
   color: #e2e8f0;
   padding: 14px 16px;
   border-radius: 10px;
@@ -166,9 +166,9 @@ watch(
 .markdown-body :deep(blockquote) {
   margin: 12px 0;
   padding: 10px 14px;
-  border-left: 4px solid #0f766e;
+  border-left: 4px solid var(--accent-deep);
   background: #ecfdf5;
-  color: #334155;
+  color: var(--ink-soft);
 }
 
 .markdown-body :deep(hr) {
@@ -178,7 +178,7 @@ watch(
 }
 
 .markdown-body :deep(a) {
-  color: #0f766e;
+  color: var(--accent-deep);
   text-decoration: none;
 }
 

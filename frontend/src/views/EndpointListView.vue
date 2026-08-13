@@ -198,7 +198,7 @@ h1 {
 
 .meta {
   margin: 4px 0 0;
-  color: #64748b;
+  color: var(--muted);
   font-size: 13px;
 }
 
@@ -210,10 +210,12 @@ h1 {
 }
 
 .tree-panel {
-  background: #fff;
-  border: 1px solid #d5e0db;
-  border-radius: 12px;
-  padding: 12px 16px 20px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-panel);
+  padding: 14px 16px 20px;
+  backdrop-filter: blur(8px);
 }
 
 .tree-row {
@@ -236,17 +238,17 @@ h1 {
 
 .name {
   font-weight: 500;
-  color: #0f172a;
+  color: var(--ink);
 }
 
 .id {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--muted-soft);
 }
 
 .attrs {
   font-size: 12px;
-  color: #64748b;
+  color: var(--muted);
   max-width: 280px;
   overflow: hidden;
   text-overflow: ellipsis;
