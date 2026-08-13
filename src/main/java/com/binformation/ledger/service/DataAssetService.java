@@ -3,10 +3,14 @@ package com.binformation.ledger.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.binformation.ledger.dto.asset.DataAssetSaveRequest;
 import com.binformation.ledger.entity.DataAsset;
+import com.binformation.ledger.entity.Derivation;
+import com.binformation.ledger.entity.DerivationInput;
 import com.binformation.ledger.entity.Flow;
 import com.binformation.ledger.exception.BadRequestException;
 import com.binformation.ledger.exception.ResourceNotFoundException;
 import com.binformation.ledger.mapper.DataAssetMapper;
+import com.binformation.ledger.mapper.DerivationInputMapper;
+import com.binformation.ledger.mapper.DerivationMapper;
 import com.binformation.ledger.mapper.FlowMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,14 +27,20 @@ public class DataAssetService {
 
     private final DataAssetMapper dataAssetMapper;
     private final FlowMapper flowMapper;
+    private final DerivationMapper derivationMapper;
+    private final DerivationInputMapper derivationInputMapper;
     private final ChangeLogService changeLogService;
 
     public DataAssetService(
             DataAssetMapper dataAssetMapper,
             FlowMapper flowMapper,
+            DerivationMapper derivationMapper,
+            DerivationInputMapper derivationInputMapper,
             ChangeLogService changeLogService) {
         this.dataAssetMapper = dataAssetMapper;
         this.flowMapper = flowMapper;
+        this.derivationMapper = derivationMapper;
+        this.derivationInputMapper = derivationInputMapper;
         this.changeLogService = changeLogService;
     }
 
@@ -82,6 +92,16 @@ public class DataAssetService {
                 new LambdaQueryWrapper<Flow>().eq(Flow::getAssetId, id));
         if (flowCount != null && flowCount > 0) {
             throw new BadRequestException("该资产下仍有 " + flowCount + " 条流向，请先删除或迁移流向");
+        }
+        Long outputDerivations = derivationMapper.selectCount(
+                new LambdaQueryWrapper<Derivation>().eq(Derivation::getOutputAssetId, id));
+        if (outputDerivations != null && outputDerivations > 0) {
+            throw new BadRequestException("该资产仍被 " + outputDerivations + " 条派生作为输出，请先处理派生");
+        }
+        Long inputRefs = derivationInputMapper.selectCount(
+                new LambdaQueryWrapper<DerivationInput>().eq(DerivationInput::getInputAssetId, id));
+        if (inputRefs != null && inputRefs > 0) {
+            throw new BadRequestException("该资产仍被 " + inputRefs + " 条派生输入引用，请先处理派生");
         }
         dataAssetMapper.deleteById(id);
         changeLogService.record("DATA_ASSET", id, "DELETE",

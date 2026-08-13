@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { getAsset } from '@/api/asset'
 import { deleteDerivation, listDerivationsByAsset } from '@/api/derivation'
+import { confirmImpactDelete } from '@/utils/impactConfirm'
 import type { DataAsset } from '@/types/graph'
 import type { DerivationDetail } from '@/types/derivation'
 import { dataTypeLabel, statusLabel } from '@/types/asset'
@@ -50,7 +51,13 @@ function openGraph() {
 
 async function remove(row: DerivationDetail) {
   try {
-    await ElMessageBox.confirm(`确定删除派生「${row.name}」吗？`, '删除确认', { type: 'warning' })
+    const ok = await confirmImpactDelete({
+      entityType: 'DERIVATION',
+      entityId: row.id,
+      entityLabel: row.name,
+      title: `删除派生「${row.name}」`,
+    })
+    if (!ok) return
     await deleteDerivation(row.id)
     ElMessage.success('已删除')
     await load()

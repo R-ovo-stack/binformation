@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { createExecutor, deleteExecutor, getExecutor, updateExecutor } from '@/api/executor'
 import { listEndpointOptions } from '@/api/reference'
 import { ENTITY_STATUS_OPTIONS } from '@/types/asset'
+import { confirmImpactDelete } from '@/utils/impactConfirm'
 import {
   EXECUTOR_KIND_OPTIONS,
   emptyExecutorForm,
@@ -82,7 +83,13 @@ async function save() {
 async function remove() {
   if (!isEdit.value || !props.id) return
   try {
-    await ElMessageBox.confirm('若仍被流向或派生引用将无法删除。', '删除确认', { type: 'warning' })
+    const ok = await confirmImpactDelete({
+      entityType: 'EXECUTOR',
+      entityId: Number(props.id),
+      entityLabel: form.name || `程序 #${props.id}`,
+      title: '删除程序/脚本',
+    })
+    if (!ok) return
     await deleteExecutor(Number(props.id))
     ElMessage.success('已删除')
     void router.push({ name: 'executors' })

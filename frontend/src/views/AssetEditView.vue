@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { createAsset, deleteAsset, getAsset, updateAsset } from '@/api/asset'
 import { listChangeLogsByAsset } from '@/api/changelog'
 import { changeActionLabel, changeEntityLabel, type ChangeLogEntry } from '@/types/changelog'
+import { confirmImpactDelete } from '@/utils/impactConfirm'
 import {
   ASSET_DATA_TYPE_OPTIONS,
   ENTITY_STATUS_OPTIONS,
@@ -87,9 +88,13 @@ async function save() {
 async function remove() {
   if (!isEdit.value || !props.id) return
   try {
-    await ElMessageBox.confirm('删除后不可恢复；若仍有流向需先删除流向。', '删除确认', {
-      type: 'warning',
+    const ok = await confirmImpactDelete({
+      entityType: 'ASSET',
+      entityId: Number(props.id),
+      entityLabel: form.name || `资产 #${props.id}`,
+      title: '删除数据资产',
     })
+    if (!ok) return
     await deleteAsset(Number(props.id))
     ElMessage.success('已删除')
     void router.push('/')

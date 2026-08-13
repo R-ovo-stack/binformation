@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { deleteExecutor, listExecutors } from '@/api/executor'
+import { confirmImpactDelete } from '@/utils/impactConfirm'
 import type { ExecutorDetail } from '@/types/executor'
 import { EXECUTOR_KIND_OPTIONS } from '@/types/executor'
 import { statusLabel } from '@/types/asset'
@@ -37,7 +38,13 @@ function openEdit(row: ExecutorDetail) {
 
 async function remove(row: ExecutorDetail) {
   try {
-    await ElMessageBox.confirm(`确定删除程序/脚本「${row.name}」吗？`, '删除确认', { type: 'warning' })
+    const ok = await confirmImpactDelete({
+      entityType: 'EXECUTOR',
+      entityId: row.id,
+      entityLabel: row.name,
+      title: `删除「${row.name}」`,
+    })
+    if (!ok) return
     await deleteExecutor(row.id)
     ElMessage.success('已删除')
     await load()

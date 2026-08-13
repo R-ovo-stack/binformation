@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { getAsset, listAssets } from '@/api/asset'
 import { createDerivation, deleteDerivation, getDerivation, updateDerivation } from '@/api/derivation'
 import { listEndpointOptions, listExecutorOptions } from '@/api/reference'
 import { ENTITY_STATUS_OPTIONS } from '@/types/asset'
+import { confirmImpactDelete } from '@/utils/impactConfirm'
 import { emptyDerivationForm, type DerivationSavePayload } from '@/types/derivation'
 import type { DataAsset } from '@/types/graph'
 import type { EndpointOption, ExecutorOption } from '@/types/flow'
@@ -131,7 +132,13 @@ async function save() {
 async function remove() {
   if (!isEdit.value || !props.derivationId) return
   try {
-    await ElMessageBox.confirm('删除后不可恢复。', '删除确认', { type: 'warning' })
+    const ok = await confirmImpactDelete({
+      entityType: 'DERIVATION',
+      entityId: Number(props.derivationId),
+      entityLabel: form.name || `派生 #${props.derivationId}`,
+      title: '删除派生',
+    })
+    if (!ok) return
     await deleteDerivation(Number(props.derivationId))
     ElMessage.success('已删除')
     void router.push({ name: 'asset-derivations', params: { id: props.id } })

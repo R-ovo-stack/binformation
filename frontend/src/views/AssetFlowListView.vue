@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { getAsset } from '@/api/asset'
 import { deleteFlow, listFlowsByAsset } from '@/api/flow'
+import { confirmImpactDelete } from '@/utils/impactConfirm'
 import type { DataAsset } from '@/types/graph'
 import { purposeLabel, type FlowSummary } from '@/types/flow'
 import { dataTypeLabel, statusLabel } from '@/types/asset'
@@ -65,11 +66,13 @@ function openGuide() {
 
 async function remove(row: FlowSummary) {
   try {
-    await ElMessageBox.confirm(`确定删除流向 #${row.id} 吗？路径与步骤将一并删除。`, '删除确认', {
-      type: 'warning',
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
+    const ok = await confirmImpactDelete({
+      entityType: 'FLOW',
+      entityId: row.id,
+      entityLabel: `流向 #${row.id}`,
+      title: `删除流向 #${row.id}`,
     })
+    if (!ok) return
     await deleteFlow(row.id)
     ElMessage.success('已删除')
     await load()

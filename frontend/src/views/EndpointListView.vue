@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { deleteEndpoint, getEndpointTypeMeta, listEndpoints } from '@/api/endpoint'
 import {
   buildEndpointTree,
@@ -10,6 +10,7 @@ import {
   filterEndpointTree,
   type EndpointTreeNode,
 } from '@/utils/endpointTree'
+import { confirmImpactDelete } from '@/utils/impactConfirm'
 import { typeLabel } from '@/types/endpoint'
 import { statusLabel } from '@/types/asset'
 import { attrsSummary } from '@/utils/endpointAttrs'
@@ -65,7 +66,13 @@ function openEdit(node: EndpointTreeNode) {
 
 async function remove(node: EndpointTreeNode) {
   try {
-    await ElMessageBox.confirm(`确定删除落点「${node.label}」吗？`, '删除确认', { type: 'warning' })
+    const ok = await confirmImpactDelete({
+      entityType: 'ENDPOINT',
+      entityId: node.id,
+      entityLabel: node.label,
+      title: `删除落点「${node.label}」`,
+    })
+    if (!ok) return
     await deleteEndpoint(node.id)
     ElMessage.success('已删除')
     await load()

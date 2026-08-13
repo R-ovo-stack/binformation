@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import {
   createEndpoint,
   deleteEndpoint,
@@ -12,6 +12,8 @@ import {
   updateEndpoint,
 } from '@/api/endpoint'
 import { ENTITY_STATUS_OPTIONS } from '@/types/asset'
+import ImpactAnalysisPanel from '@/components/ImpactAnalysisPanel.vue'
+import { confirmImpactDelete } from '@/utils/impactConfirm'
 import {
   emptyEndpointForm,
   typeLabel,
@@ -230,7 +232,13 @@ async function save() {
 async function remove() {
   if (!isEdit.value || !props.id) return
   try {
-    await ElMessageBox.confirm('若仍被流向引用将无法删除。', '删除确认', { type: 'warning' })
+    const ok = await confirmImpactDelete({
+      entityType: 'ENDPOINT',
+      entityId: Number(props.id),
+      entityLabel: form.name || `落点 #${props.id}`,
+      title: '删除落点',
+    })
+    if (!ok) return
     await deleteEndpoint(Number(props.id))
     ElMessage.success('已删除')
     void router.push({ name: 'endpoints' })
@@ -328,6 +336,8 @@ watch(() => props.id, load)
         <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="可选" />
       </el-form-item>
     </el-form>
+
+    <ImpactAnalysisPanel v-if="isEdit && props.id" entity-type="ENDPOINT" :entity-id="Number(props.id)" />
   </div>
 </template>
 

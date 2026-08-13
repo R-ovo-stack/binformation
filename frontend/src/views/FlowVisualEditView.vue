@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getAsset } from '@/api/asset'
 import { createFlow, deleteFlow, getFlow, listFlowsByAsset, updateFlow } from '@/api/flow'
+import { confirmImpactDelete } from '@/utils/impactConfirm'
 import { listEndpointOptions, listExecutorOptions } from '@/api/reference'
 import FlowBoardCanvas, { type BoardFlowEdge } from '@/components/FlowBoardCanvas.vue'
 import EndpointTreeSelect from '@/components/EndpointTreeSelect.vue'
@@ -646,7 +647,13 @@ async function removePanelFlow() {
   }
   if (!flow.id) return
   try {
-    await ElMessageBox.confirm(`确定删除流向 #${flow.id} 吗？`, '删除确认', { type: 'warning' })
+    const ok = await confirmImpactDelete({
+      entityType: 'FLOW',
+      entityId: flow.id,
+      entityLabel: `流向 #${flow.id}`,
+      title: `删除流向 #${flow.id}`,
+    })
+    if (!ok) return
     await deleteFlow(flow.id)
     ElMessage.success('已删除')
     editing.value = null
