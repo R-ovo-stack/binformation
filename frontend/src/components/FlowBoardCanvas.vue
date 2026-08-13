@@ -37,6 +37,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   selectEdge: [edgeId: string | null]
   connect: [sourceEndpointId: number, targetEndpointId: number]
+  editEndpoint: [endpointId: number]
 }>()
 
 const containerRef = ref<HTMLDivElement | null>(null)
@@ -201,6 +202,14 @@ function buildGraphInstance() {
 
   graph.on('blank:click', () => emit('selectEdge', null))
   graph.on('node:click', () => emit('selectEdge', null))
+  graph.on('node:dblclick', ({ node }) => {
+    const endpointId = parseBoardNodeId(String(node.id))
+    if (endpointId == null) return
+    if (!isBoardEndpointNode(String(node.id))) return
+    // 程序节点不可在此编辑；仅落点
+    if (!props.canvasEndpointIds.includes(endpointId)) return
+    emit('editEndpoint', endpointId)
+  })
 }
 
 function endpointPorts(endpointId: number) {
@@ -672,7 +681,7 @@ onBeforeUnmount(() => {
     </div>
     <div ref="containerRef" class="canvas" />
     <div class="hint">
-      布局与一键成图一致：源 → 程序 → 目标。拖线靠近落点端口会自动<strong>吸附</strong>；编辑 A→B 时再拖 B→C 会新增独立流向
+      双击落点可改属性；拖线靠近端口会<strong>吸附</strong>。编辑 A→B 时再拖 B→C 会新增独立流向
     </div>
   </div>
 </template>

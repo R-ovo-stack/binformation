@@ -7,6 +7,7 @@ import { createFlow, deleteFlow, getFlow, listFlowsByAsset, updateFlow } from '@
 import { listEndpointOptions, listExecutorOptions } from '@/api/reference'
 import FlowBoardCanvas, { type BoardFlowEdge } from '@/components/FlowBoardCanvas.vue'
 import EndpointTreeSelect from '@/components/EndpointTreeSelect.vue'
+import EndpointQuickEditDrawer from '@/components/EndpointQuickEditDrawer.vue'
 import type { DataAsset } from '@/types/graph'
 import {
   FLOW_METHOD_OPTIONS,
@@ -42,6 +43,8 @@ const editing = ref<FlowDetail | null>(null)
 const addEndpointId = ref<number | null>(null)
 const canvasRef = ref<InstanceType<typeof FlowBoardCanvas> | null>(null)
 const boardKey = ref(0)
+const endpointEditOpen = ref(false)
+const endpointEditId = ref<number | null>(null)
 
 const assetId = computed(() => Number(props.id))
 
@@ -297,6 +300,23 @@ async function selectEdge(edgeId: string | null) {
   }
 }
 
+function onEditEndpoint(endpointId: number) {
+  endpointEditId.value = endpointId
+  endpointEditOpen.value = true
+}
+
+async function onEndpointSaved(endpointId: number) {
+  try {
+    const [eps, execs] = await Promise.all([listEndpointOptions(), listExecutorOptions()])
+    allEndpoints.value = eps
+    executors.value = execs
+    ensureEndpointsOnCanvas(endpointId)
+    boardKey.value += 1
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '刷新落点失败')
+  }
+}
+
 function addEndpointToCanvas() {
   if (!addEndpointId.value) {
     ElMessage.warning('请先选择落点')
@@ -540,7 +560,7 @@ watch(
       />
       <el-button type="primary" plain @click="addEndpointToCanvas">加入</el-button>
       <span class="toolbar-tip">
-        加入画布仅展示落点；从落点<strong>右侧</strong>拖线到另一落点<strong>左侧</strong>才会新建流向
+        双击落点可改属性；从落点<strong>右侧</strong>拖线到另一落点<strong>左侧</strong>可新建流向
       </span>
     </div>
 
@@ -559,6 +579,7 @@ watch(
         :selected-edge-id="selectedEdgeId"
         @select-edge="selectEdge"
         @connect="onConnect"
+        @edit-endpoint="onEditEndpoint"
       />
 
       <aside class="side card">
@@ -756,11 +777,17 @@ watch(
           <h2>流向编辑</h2>
           <p class="empty-hint">
             在画布上从落点右侧拖线到另一落点左侧，可<strong>新建</strong>一条流向；点击已有连线可<strong>编辑</strong>该流向。
-            编辑 A→B 时再拖 B→C，会新建独立的 B→C 流向，不会合并成一条 A→C。
+            <strong>双击落点</strong>可修改其属性。编辑 A→B 时再拖 B→C，会新建独立的 B→C 流向。
           </p>
         </template>
       </aside>
     </div>
+
+    <EndpointQuickEditDrawer
+      v-model="endpointEditOpen"
+      :endpoint-id="endpointEditId"
+      @saved="onEndpointSaved"
+    />
   </div>
 </template>
 
