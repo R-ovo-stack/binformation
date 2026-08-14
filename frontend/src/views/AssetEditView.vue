@@ -157,6 +157,11 @@ watch(() => props.id, load)
         <el-button @click="router.push({ name: 'asset-graph', params: { id: props.id! } })">
           一键成图
         </el-button>
+        <el-button
+          @click="router.push({ name: 'lineage', query: { mode: 'asset', assetId: props.id! } })"
+        >
+          下游系统
+        </el-button>
       </div>
     </el-form>
 

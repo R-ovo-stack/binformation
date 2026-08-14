@@ -9,6 +9,7 @@ const items = [
   { name: 'assets', label: '数据资产', path: '/' },
   { name: 'endpoints', label: '落点', path: '/endpoints' },
   { name: 'executors', label: '程序/脚本', path: '/executors' },
+  { name: 'lineage', label: '供需查询', path: '/lineage' },
   { name: 'impact', label: '影响分析', path: '/impact' },
 ] as const
 
@@ -20,6 +21,7 @@ const active = computed(() => {
   if (n.startsWith('derivation') || n === 'asset-derivations') return 'assets'
   if (n === 'asset-flows' || n.startsWith('flow')) return 'assets'
   if (n === 'impact') return 'impact'
+  if (n === 'lineage') return 'lineage'
   return ''
 })
 

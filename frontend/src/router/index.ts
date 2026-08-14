@@ -14,6 +14,7 @@ import DerivationEditView from '@/views/DerivationEditView.vue'
 import FlowEditingGuideView from '@/views/FlowEditingGuideView.vue'
 import PanoramaGraphView from '@/views/PanoramaGraphView.vue'
 import ImpactAnalysisView from '@/views/ImpactAnalysisView.vue'
+import SystemAssetLineageView from '@/views/SystemAssetLineageView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -81,6 +82,11 @@ const router = createRouter({
       path: '/impact',
       name: 'impact',
       component: ImpactAnalysisView,
+    },
+    {
+      path: '/lineage',
+      name: 'lineage',
+      component: SystemAssetLineageView,
     },
   ],
 })

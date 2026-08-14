@@ -261,6 +261,12 @@ watch(() => props.id, load)
         <h1>{{ pageTitle }}</h1>
       </div>
       <div class="actions">
+        <el-button
+          v-if="isEdit && form.type === 'SYSTEM'"
+          @click="router.push({ name: 'lineage', query: { mode: 'system', systemId: props.id! } })"
+        >
+          获取的资产
+        </el-button>
         <el-button v-if="isEdit" type="danger" plain @click="remove">删除</el-button>
         <el-button @click="router.push({ name: 'endpoints' })">取消</el-button>
         <el-button type="primary" :loading="saving" @click="save">保存</el-button>
