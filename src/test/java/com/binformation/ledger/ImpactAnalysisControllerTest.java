@@ -65,4 +65,16 @@ class ImpactAnalysisControllerTest {
                 .andExpect(jsonPath("$.entityId", is(1)))
                 .andExpect(jsonPath("$.blockers").isArray());
     }
+
+    @Test
+    void shouldAnalyzeAssetUpdateAsInformational() throws Exception {
+        mockMvc.perform(get("/api/impact")
+                        .param("entityType", "ASSET")
+                        .param("entityId", "1")
+                        .param("action", "UPDATE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.action", is("UPDATE")))
+                .andExpect(jsonPath("$.canProceed", is(true)))
+                .andExpect(jsonPath("$.blockers.length()", is(0)));
+    }
 }

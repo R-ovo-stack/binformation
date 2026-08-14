@@ -12,6 +12,7 @@ import {
   type ExecutorSavePayload,
 } from '@/types/executor'
 import type { EndpointOption } from '@/types/flow'
+import ImpactAnalysisPanel from '@/components/ImpactAnalysisPanel.vue'
 
 const props = defineProps<{ id?: string }>()
 const router = useRouter()
@@ -153,6 +154,13 @@ watch(() => props.id, load)
         <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="可选" />
       </el-form-item>
     </el-form>
+
+    <ImpactAnalysisPanel
+      v-if="isEdit && props.id"
+      entity-type="EXECUTOR"
+      :entity-id="Number(props.id)"
+      action="UPDATE"
+    />
   </div>
 </template>
 
