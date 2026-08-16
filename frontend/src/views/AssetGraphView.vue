@@ -148,8 +148,8 @@ onMounted(() => {
           @change="regenerate"
         />
         <el-radio-group v-model="layoutMode" size="small">
-          <el-radio-button label="compact">简洁</el-radio-button>
-          <el-radio-button label="full">完整</el-radio-button>
+          <el-radio-button value="compact">简洁</el-radio-button>
+          <el-radio-button value="full">完整</el-radio-button>
         </el-radio-group>
         <el-switch
           v-model="compressExecutorHost"
@@ -175,7 +175,6 @@ onMounted(() => {
 
     <div class="workspace">
       <FlowGraphCanvas
-        :key="`${layoutMode}-${compressExecutorHost}`"
         ref="canvasRef"
         class="canvas"
         :graph="graph"

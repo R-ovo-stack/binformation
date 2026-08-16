@@ -294,6 +294,8 @@ async function render() {
     })
 
     expandDisplayEdges(g).forEach((edge) => {
+      if (!graphInstance!.getCellById(edge.source)?.isNode()) return
+      if (!graphInstance!.getCellById(edge.target)?.isNode()) return
       const stroke = edgeStroke(edge)
       graphInstance!.addEdge({
         id: edge.id,
@@ -348,6 +350,8 @@ async function render() {
     visibleRelations(g.relations, currentMode, {
       compressExecutorHost: compressHost.value,
     }).forEach((rel) => {
+      if (!graphInstance!.getCellById(rel.source)?.isNode()) return
+      if (!graphInstance!.getCellById(rel.target)?.isNode()) return
       const isRunsOn = rel.type === 'RUNS_ON'
       const stroke = isRunsOn
         ? '#c2410c'

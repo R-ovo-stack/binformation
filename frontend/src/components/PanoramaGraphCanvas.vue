@@ -129,12 +129,16 @@ function render() {
   })
 
   g.edges.forEach((edge) => {
+    const sourceId = panoramaNodeId(edge.sourceAssetId)
+    const targetId = panoramaNodeId(edge.targetAssetId)
+    if (!graphInstance!.getCellById(sourceId)?.isNode()) return
+    if (!graphInstance!.getCellById(targetId)?.isNode()) return
     const stroke = panoramaEdgeStroke(edge.type)
     const isDerive = edge.type === 'DERIVE'
     graphInstance!.addEdge({
       id: edge.id,
-      source: panoramaNodeId(edge.sourceAssetId),
-      target: panoramaNodeId(edge.targetAssetId),
+      source: sourceId,
+      target: targetId,
       labels: [
         {
           attrs: {
