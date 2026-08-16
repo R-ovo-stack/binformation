@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import GlobalSearch from '@/components/GlobalSearch.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -20,6 +21,7 @@ const active = computed(() => {
   if (n.startsWith('derivation') || n === 'asset-derivations') return 'assets'
   if (n === 'asset-flows' || n.startsWith('flow')) return 'assets'
   if (n === 'impact') return 'impact'
+  if (n === 'search') return 'search'
   return ''
 })
 
@@ -45,6 +47,8 @@ function goHome() {
       </span>
     </button>
 
+    <GlobalSearch />
+
     <nav class="app-nav" aria-label="主导航">
       <button
         v-for="item in items"
@@ -65,7 +69,7 @@ function goHome() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
   margin: 0 0 20px;
   padding: 10px 12px;
@@ -75,6 +79,14 @@ function goHome() {
   box-shadow: var(--shadow-panel);
   backdrop-filter: blur(14px);
   animation: chrome-in 0.5s ease both;
+}
+
+.brand-lockup {
+  flex: 0 0 auto;
+}
+
+.app-nav {
+  flex: 0 0 auto;
 }
 
 .brand-lockup {
