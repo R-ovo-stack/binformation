@@ -15,6 +15,7 @@ import FlowEditingGuideView from '@/views/FlowEditingGuideView.vue'
 import PanoramaGraphView from '@/views/PanoramaGraphView.vue'
 import ImpactAnalysisView from '@/views/ImpactAnalysisView.vue'
 import SearchView from '@/views/SearchView.vue'
+import SystemAssetLineageView from '@/views/SystemAssetLineageView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -87,6 +88,11 @@ const router = createRouter({
       path: '/search',
       name: 'search',
       component: SearchView,
+    },
+    {
+      path: '/lineage',
+      name: 'lineage',
+      component: SystemAssetLineageView,
     },
   ],
 })

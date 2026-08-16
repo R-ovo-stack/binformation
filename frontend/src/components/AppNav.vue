@@ -10,6 +10,7 @@ const items = [
   { name: 'assets', label: '数据资产', path: '/' },
   { name: 'endpoints', label: '落点', path: '/endpoints' },
   { name: 'executors', label: '程序/脚本', path: '/executors' },
+  { name: 'lineage', label: '供需查询', path: '/lineage' },
   { name: 'impact', label: '影响分析', path: '/impact' },
 ] as const
 
@@ -22,6 +23,7 @@ const active = computed(() => {
   if (n === 'asset-flows' || n.startsWith('flow')) return 'assets'
   if (n === 'impact') return 'impact'
   if (n === 'search') return 'search'
+  if (n === 'lineage') return 'lineage'
   return ''
 })
 
@@ -82,17 +84,10 @@ function goHome() {
 }
 
 .brand-lockup {
-  flex: 0 0 auto;
-}
-
-.app-nav {
-  flex: 0 0 auto;
-}
-
-.brand-lockup {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  flex: 0 0 auto;
   border: 0;
   background: transparent;
   padding: 4px 6px;
@@ -151,6 +146,7 @@ function goHome() {
 
 .app-nav {
   display: flex;
+  flex: 0 0 auto;
   gap: 4px;
   flex-wrap: wrap;
   padding: 3px;

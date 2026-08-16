@@ -120,6 +120,7 @@ onMounted(load)
       </div>
       <div class="page-actions">
         <el-button @click="router.push('/panorama')">资产全景图</el-button>
+        <el-button @click="router.push('/lineage')">供需查询</el-button>
         <el-button :loading="exportingJson" @click="exportLedger('json')">导出 JSON</el-button>
         <el-button :loading="exportingZip" @click="exportLedger('zip')">导出 CSV 包</el-button>
         <el-button type="primary" @click="openCreate">新建资产</el-button>
