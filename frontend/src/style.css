@@ -1,4 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+@import '@fontsource/space-grotesk/500.css';
+@import '@fontsource/space-grotesk/600.css';
+@import '@fontsource/space-grotesk/700.css';
+@import '@fontsource/source-sans-3/400.css';
+@import '@fontsource/source-sans-3/500.css';
+@import '@fontsource/source-sans-3/600.css';
+@import '@fontsource/source-sans-3/700.css';
 
 :root {
   color: var(--ink);
@@ -9,7 +15,7 @@
     radial-gradient(ellipse 50% 40% at 50% 100%, rgba(51, 65, 85, 0.06), transparent 55%),
     linear-gradient(165deg, #eef3f6 0%, #e6edf2 42%, #e9eef1 100%);
   background-attachment: fixed;
-  font-family: 'Source Sans 3', 'Segoe UI', sans-serif;
+  font-family: 'Source Sans 3', 'PingFang SC', 'Segoe UI', 'Microsoft YaHei', sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -34,7 +40,7 @@
   --radius-sm: 10px;
   --shadow-soft: 0 10px 30px rgba(15, 35, 55, 0.06);
   --shadow-panel: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 12px 36px rgba(15, 35, 55, 0.07);
-  --font-display: 'Space Grotesk', 'Source Sans 3', sans-serif;
+  --font-display: 'Space Grotesk', 'Source Sans 3', 'PingFang SC', 'Segoe UI', sans-serif;
   --page-max: 1480px;
   --page-pad-x: 28px;
   --page-pad-y: 24px;
@@ -48,7 +54,7 @@
   --el-color-primary-dark-2: #0f766e;
   --el-border-radius-base: 10px;
   --el-border-radius-small: 8px;
-  --el-font-family: 'Source Sans 3', 'Segoe UI', sans-serif;
+  --el-font-family: 'Source Sans 3', 'PingFang SC', 'Segoe UI', 'Microsoft YaHei', sans-serif;
   --el-bg-color-page: transparent;
   --el-text-color-primary: #0b1520;
   --el-text-color-regular: #1e2d3d;

@@ -9,10 +9,18 @@
 
 ## 启动
 
+请同时启动后端和前端。只开前端时，首页会一直转圈（请求 `/api/assets` 无响应）。
+
 ### 1. 后端
 
 ```bash
 mvn spring-boot:run
+```
+
+就绪标志：终端出现 `Started LedgerApplication`，且可访问：
+
+```bash
+curl http://localhost:8080/api/assets
 ```
 
 - API：http://localhost:8080
@@ -21,17 +29,29 @@ mvn spring-boot:run
 
 ### 2. 前端（一键成图）
 
+另开一个终端：
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-打开 http://localhost:5173 ：
+打开 http://localhost:5173 （不要用 `npm run preview` 代替开发模式，否则 `/api` 不会代理到后端）。
 
 1. 进入资产列表
 2. 点击「订单文件数据」或「一键成图」
 3. 查看自动布局流向图，点击连线查看步骤
+
+### 本地一直转圈？
+
+按顺序自查：
+
+1. **后端是否在跑**：`curl http://localhost:8080/api/assets` 应返回 JSON。若失败，先只启动后端并等到 `Started LedgerApplication`。
+2. **前端是否用开发服务器**：必须 `cd frontend && npm run dev`，浏览器打开 `http://localhost:5173`。
+3. **端口占用**：8080 / 5173 被占用时换端口或结束旧进程。H2 被二次占用会出现数据库锁，关掉多余的 `spring-boot:run`。
+4. **浏览器 Network**：看 `/api/assets` 是 pending / 502 / 超时。502 一般是后端未启动。
+5. **不要只开 jar + 静态页而不配反向代理**：开发期请用 Vite 代理。
 
 ## 核心 API
 
