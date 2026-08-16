@@ -82,12 +82,48 @@ public class ImpactAnalysisService {
             case "ENDPOINT" -> "DELETE".equals(act)
                     ? analyzeEndpointDelete(entityId)
                     : analyzeEndpointUpdate(entityId);
-            case "ASSET" -> analyzeAssetDelete(entityId);
-            case "FLOW" -> analyzeFlowDelete(entityId);
-            case "EXECUTOR" -> analyzeExecutorDelete(entityId);
-            case "DERIVATION" -> analyzeDerivationDelete(entityId);
+            case "ASSET" -> "DELETE".equals(act)
+                    ? analyzeAssetDelete(entityId)
+                    : asUpdateView(analyzeAssetDelete(entityId));
+            case "FLOW" -> "DELETE".equals(act)
+                    ? analyzeFlowDelete(entityId)
+                    : asUpdateView(analyzeFlowDelete(entityId));
+            case "EXECUTOR" -> "DELETE".equals(act)
+                    ? analyzeExecutorDelete(entityId)
+                    : asUpdateView(analyzeExecutorDelete(entityId));
+            case "DERIVATION" -> "DELETE".equals(act)
+                    ? analyzeDerivationDelete(entityId)
+                    : asUpdateView(analyzeDerivationDelete(entityId));
             default -> throw new BadRequestException("不支持的实体类型: " + entityType);
         };
+    }
+
+    /** Remap delete blockers into informational warnings for UPDATE preview. */
+    private ImpactAnalysisDto asUpdateView(ImpactAnalysisDto deleteView) {
+        List<ImpactGroupDto> warnings = new ArrayList<>();
+        for (ImpactGroupDto group : deleteView.blockers()) {
+            warnings.add(new ImpactGroupDto(
+                    group.kind(),
+                    SEVERITY_INFO,
+                    group.count(),
+                    group.message(),
+                    group.items()));
+        }
+        for (ImpactGroupDto group : deleteView.warnings()) {
+            warnings.add(new ImpactGroupDto(
+                    group.kind(),
+                    SEVERITY_INFO.equals(group.severity()) ? SEVERITY_INFO : SEVERITY_WARNING,
+                    group.count(),
+                    group.message(),
+                    group.items()));
+        }
+        return buildResult(
+                deleteView.entityType(),
+                deleteView.entityId(),
+                deleteView.entityLabel(),
+                "UPDATE",
+                List.of(),
+                warnings);
     }
 
     public ImpactAnalysisDto analyzeEndpointDelete(Long endpointId) {

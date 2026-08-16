@@ -1,6 +1,10 @@
+import { h } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { analyzeImpact } from '@/api/impact'
-import type { ImpactAnalysis, ImpactEntityType, ImpactGroup } from '@/types/impact'
+import ImpactDeleteBody from '@/components/ImpactDeleteBody.vue'
+import router from '@/router'
+import type { ImpactAnalysis, ImpactEntityType, ImpactGroup, ImpactItem } from '@/types/impact'
+import { resolveImpactItemRoute } from '@/utils/impactNav'
 
 function formatGroupLines(group: ImpactGroup, maxItems = 6): string[] {
   const lines = [`• ${group.message}`]
@@ -32,6 +36,37 @@ export function formatImpactMessage(analysis: ImpactAnalysis): string {
   return parts.join('\n').trim()
 }
 
+function impactPageQuery(entityType: ImpactEntityType, entityId: number) {
+  return {
+    name: 'impact' as const,
+    query: {
+      type: entityType,
+      id: String(entityId),
+      action: 'DELETE',
+    },
+  }
+}
+
+function renderDeleteBody(
+  analysis: ImpactAnalysis,
+  entityType: ImpactEntityType,
+  entityId: number,
+) {
+  return h(ImpactDeleteBody, {
+    analysis,
+    onOpenItem: (item: ImpactItem) => {
+      const route = resolveImpactItemRoute(item)
+      if (!route) return
+      ElMessageBox.close()
+      void router.push(route)
+    },
+    onOpenFull: () => {
+      ElMessageBox.close()
+      void router.push(impactPageQuery(entityType, entityId))
+    },
+  })
+}
+
 export async function confirmImpactDelete(options: {
   entityType: ImpactEntityType
   entityId: number
@@ -39,22 +74,37 @@ export async function confirmImpactDelete(options: {
   title?: string
 }): Promise<boolean> {
   const analysis = await analyzeImpact(options.entityType, options.entityId, 'DELETE')
-  const message = formatImpactMessage(analysis)
+  const body = renderDeleteBody(analysis, options.entityType, options.entityId)
 
   if (!analysis.canProceed) {
-    await ElMessageBox.alert(message, '无法删除', {
-      type: 'error',
-      confirmButtonText: '知道了',
-    })
+    try {
+      await ElMessageBox({
+        title: '无法删除',
+        type: 'error',
+        message: body,
+        confirmButtonText: '知道了',
+        showCancelButton: true,
+        cancelButtonText: '完整分析',
+        distinguishCancelAndClose: true,
+        customClass: 'impact-delete-box',
+      })
+    } catch (action) {
+      if (action === 'cancel') {
+        void router.push(impactPageQuery(options.entityType, options.entityId))
+      }
+    }
     return false
   }
 
   try {
-    await ElMessageBox.confirm(message, options.title ?? `删除「${options.entityLabel}」`, {
-      type: analysis.warnings.length ? 'warning' : 'warning',
+    await ElMessageBox({
+      title: options.title ?? `删除「${options.entityLabel}」`,
+      type: 'warning',
+      message: body,
       confirmButtonText: '确认删除',
       cancelButtonText: '取消',
       distinguishCancelAndClose: true,
+      customClass: 'impact-delete-box',
     })
     return true
   } catch {

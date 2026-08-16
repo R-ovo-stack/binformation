@@ -12,6 +12,7 @@ import {
   emptyAssetForm,
   type AssetSavePayload,
 } from '@/types/asset'
+import ImpactAnalysisPanel from '@/components/ImpactAnalysisPanel.vue'
 
 const props = defineProps<{ id?: string }>()
 const router = useRouter()
@@ -164,6 +165,13 @@ watch(() => props.id, load)
         </el-button>
       </div>
     </el-form>
+
+    <ImpactAnalysisPanel
+      v-if="isEdit && props.id"
+      entity-type="ASSET"
+      :entity-id="Number(props.id)"
+      action="UPDATE"
+    />
 
     <section v-if="isEdit" class="changelog card" v-loading="logsLoading">
       <h2>变更记录</h2>

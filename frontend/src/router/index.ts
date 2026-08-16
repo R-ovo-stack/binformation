@@ -14,6 +14,7 @@ import DerivationEditView from '@/views/DerivationEditView.vue'
 import FlowEditingGuideView from '@/views/FlowEditingGuideView.vue'
 import PanoramaGraphView from '@/views/PanoramaGraphView.vue'
 import ImpactAnalysisView from '@/views/ImpactAnalysisView.vue'
+import SearchView from '@/views/SearchView.vue'
 import SystemAssetLineageView from '@/views/SystemAssetLineageView.vue'
 
 const router = createRouter({
@@ -82,6 +83,11 @@ const router = createRouter({
       path: '/impact',
       name: 'impact',
       component: ImpactAnalysisView,
+    },
+    {
+      path: '/search',
+      name: 'search',
+      component: SearchView,
     },
     {
       path: '/lineage',
