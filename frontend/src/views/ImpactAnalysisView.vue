@@ -34,15 +34,10 @@ const options = ref<Option[]>([])
 const assets = ref<DataAsset[]>([])
 const cascadeAssetId = ref<number | null>(null)
 
-const actionOptions = computed(() => {
-  if (entityType.value === 'ENDPOINT') {
-    return [
-      { value: 'DELETE' as const, label: '删除影响' },
-      { value: 'UPDATE' as const, label: '变更影响' },
-    ]
-  }
-  return [{ value: 'DELETE' as const, label: '删除影响' }]
-})
+const actionOptions = computed(() => [
+  { value: 'DELETE' as const, label: '删除影响' },
+  { value: 'UPDATE' as const, label: '变更影响' },
+])
 
 const needsCascade = computed(
   () => entityType.value === 'FLOW' || entityType.value === 'DERIVATION',
@@ -131,7 +126,7 @@ function applyQuery() {
   }
   const act = String(route.query.action || '').toUpperCase() as ImpactAction
   if (act === 'DELETE' || act === 'UPDATE') {
-    action.value = entityType.value === 'ENDPOINT' ? act : 'DELETE'
+    action.value = act
   }
   const aid = Number(route.query.assetId)
   if (Number.isFinite(aid) && aid > 0) {
@@ -148,9 +143,6 @@ watch(entityType, async () => {
   analyzed.value = false
   cascadeAssetId.value = null
   options.value = []
-  if (entityType.value !== 'ENDPOINT' && action.value === 'UPDATE') {
-    action.value = 'DELETE'
-  }
   await loadOptions()
 })
 

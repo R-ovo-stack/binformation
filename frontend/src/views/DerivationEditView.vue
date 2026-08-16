@@ -10,6 +10,7 @@ import { confirmImpactDelete } from '@/utils/impactConfirm'
 import { emptyDerivationForm, type DerivationSavePayload } from '@/types/derivation'
 import type { DataAsset } from '@/types/graph'
 import type { EndpointOption, ExecutorOption } from '@/types/flow'
+import ImpactAnalysisPanel from '@/components/ImpactAnalysisPanel.vue'
 
 const props = defineProps<{ id: string; derivationId?: string }>()
 const router = useRouter()
@@ -213,6 +214,13 @@ watch(() => [props.id, props.derivationId], load)
         </el-button>
       </div>
     </el-form>
+
+    <ImpactAnalysisPanel
+      v-if="isEdit && props.derivationId"
+      entity-type="DERIVATION"
+      :entity-id="Number(props.derivationId)"
+      action="UPDATE"
+    />
   </div>
 </template>
 
