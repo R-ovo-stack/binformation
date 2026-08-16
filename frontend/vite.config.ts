@@ -17,6 +17,23 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:8080',
         changeOrigin: true,
+        timeout: 10000,
+        proxyTimeout: 10000,
+        configure: (proxy) => {
+          proxy.on('error', (err, _req, res) => {
+            console.error('[vite proxy /api]', err.message)
+            const httpRes = res as { headersSent?: boolean; writeHead?: Function; end?: Function }
+            if (httpRes && !httpRes.headersSent && typeof httpRes.writeHead === 'function') {
+              httpRes.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' })
+              httpRes.end?.(
+                JSON.stringify({
+                  message:
+                    '后端未启动或无法连接 http://127.0.0.1:8080，请先在项目根目录执行 mvn spring-boot:run',
+                }),
+              )
+            }
+          })
+        },
       },
     },
   },
