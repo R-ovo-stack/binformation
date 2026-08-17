@@ -396,12 +396,21 @@ function paintNodes(positioned: PositionedNode[]) {
   })
 }
 
+function canConnect(sourceId: string, targetId: string): boolean {
+  if (!graph) return false
+  const source = graph.getCellById(sourceId)
+  const target = graph.getCellById(targetId)
+  return Boolean(source?.isNode() && target?.isNode())
+}
+
 function paintFlowEdges(viewGraph: AssetGraph) {
   if (!graph) return
 
   const boardEdgeById = new Map(props.edges.map((e) => [e.id, e]))
 
   expandDisplayEdges(viewGraph).forEach((edge) => {
+    if (!canConnect(edge.source, edge.target)) return
+
     const flowId = boardFlowIdFromCell(edge.id)
     const boardEdge = boardEdgeById.get(flowId)
     const selected = props.selectedEdgeId === flowId
@@ -473,7 +482,8 @@ function paintFlowEdges(viewGraph: AssetGraph) {
 function paintRelations(viewGraph: AssetGraph) {
   if (!graph) return
 
-  visibleRelations(viewGraph.relations, 'compact').forEach((rel) => {
+  visibleRelations(viewGraph.relations, 'full').forEach((rel) => {
+    if (!canConnect(rel.source, rel.target)) return
     const isRunsOn = rel.type === 'RUNS_ON'
     const stroke = isRunsOn ? '#c2410c' : '#94a3b8'
     graph!.addEdge({
@@ -545,7 +555,9 @@ async function paintCells(fit: boolean) {
     return
   }
 
-  const positioned = await layoutGraph(assetGraph, 'compact')
+  // 可视化编辑需展示全部流向（含 AUX / 非 primary），不能用 compact 过滤掉节点后再画边，
+  // 否则会出现 X6 “source node … not exists”，进而触发后续空引用异常。
+  const positioned = await layoutGraph(assetGraph, 'full')
   if (seq !== renderSeq || !graph) return
 
   graph.batchUpdate(() => {

@@ -186,7 +186,10 @@ export function buildBoardAssetGraph(params: {
         ensureExecutorNode(step.executorId)
         if (step.hostId != null) {
           ensureEndpointNode(step.hostId)
-          addRunsOn(step.executorId, step.hostId)
+          // 仅当主机节点确实写入画布后再挂部署关系，避免边指向缺失节点
+          if (nodeIds.has(epNodeId(step.hostId))) {
+            addRunsOn(step.executorId, step.hostId)
+          }
         }
       }
     }

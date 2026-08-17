@@ -285,8 +285,8 @@ onBeforeUnmount(() => {
             @change="loadTechnical"
           />
           <el-radio-group v-model="layoutMode" size="small">
-            <el-radio-button label="compact">简洁</el-radio-button>
-            <el-radio-button label="full">完整</el-radio-button>
+            <el-radio-button value="compact">简洁</el-radio-button>
+            <el-radio-button value="full">完整</el-radio-button>
           </el-radio-group>
           <span class="tip" v-if="technicalGraph">
             节点 {{ technicalGraph.nodes.length }} · 流向 {{ technicalGraph.edges.length }}
@@ -300,7 +300,7 @@ onBeforeUnmount(() => {
         <div class="workspace" :class="{ 'workspace-immersive': immersive }">
           <FlowGraphCanvas
             ref="technicalCanvasRef"
-            :key="`${layoutMode}-${selectedAssetIds.join(',')}-${includeAuxiliary}`"
+            :key="`${selectedAssetIds.join(',')}-${includeAuxiliary}`"
             class="canvas-panel"
             :graph="technicalGraph"
             :layout-mode="layoutMode"
