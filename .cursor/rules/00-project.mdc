@@ -1,0 +1,60 @@
+---
+description: 数据中心台账（binformation / datacenter-ledger）全局约定 — 本地与 Cloud Agent 均应遵循
+alwaysApply: true
+---
+
+# 项目全局约定
+
+## 产品定位
+
+数据中心台账：管理**落点树**、**数据资产**、**流向（Flow/Path/Step）**、**程序/脚本**、**派生**，并提供一键成图、全景、供需查询、影响分析、全局搜索、全量导出。
+
+## 技术栈（勿擅自换栈）
+
+- 后端：Java 21 · Spring Boot 3.3 · H2（文件库）· Flyway · MyBatis-Plus · springdoc
+- 前端：Vue 3 · Vite · Element Plus · AntV X6 · TypeScript · `@fontsource/*`（禁止再引入 Google Fonts CDN）
+
+## 本地开发铁律
+
+1. **必须同时启动后端 + 前端开发服务器**。只开前端会导致首页一直转圈 / `/api` 502。
+2. 后端：`mvn spring-boot:run`，等到 `Started LedgerApplication`，`curl http://localhost:8080/api/assets` 应返回 JSON。
+3. 前端：`cd frontend && npm install && npm run dev`，打开 **http://localhost:5173**（不要用 `preview` 代替开发，否则无 `/api` 代理）。
+4. H2 文件库路径：`./data/datacenter-ledger`。不要并行跑多个 `spring-boot:run`，否则会锁库。
+5. 详细启动与排障见根目录 `README.md`；领域实现见 `docs/implementation-logic.md`。
+
+## 文档权威来源
+
+| 文档 | 用途 |
+|------|------|
+| `README.md` | 启动、功能地图、API 索引、排障 |
+| `docs/implementation-logic.md` | 端到端实现逻辑与数据流 |
+| `docs/schema-design.md` | 表结构与枚举 |
+| `docs/graph-dto-design.md` | GraphDTO 契约 |
+| `docs/flow-editing-guide.md` | 流向配置产品说明 |
+
+改行为或契约时同步更新对应文档，勿只改代码。
+
+## 代码改动原则
+
+- 只改任务相关文件；不做无关重构、不顺手“美化”大范围格式。
+- 用户未要求时不主动新增 markdown；本仓库文档任务除外。
+- 提交信息用完整句子说明**为什么**；分支名遵循 `cursor/<name>-0d5d`（Cloud Agent 场景）。
+- 前后端契约变更：同时改 DTO/API、前端 `types`/`api`、必要时补测试。
+
+## 领域语言（中英对照，代码里保持一致）
+
+- 落点 = Endpoint（树：安全区 → 系统 → 中间件/主机 → 主题/目录等）
+- 数据资产 = DataAsset
+- 流向 = Flow；路径 = FlowPath；步骤 = FlowStep
+- 程序/脚本 = Executor
+- 派生/加工 = Derivation
+- 主流向 = `isPrimary=true`；辅助 = `purpose=AUX` 或 `isPrimary=false`
+- 一键成图 = `GET /api/assets/{id}/graph`
+- 供需查询 = Lineage（系统↔资产）
+- 影响分析 = Impact
+
+## 错误与 API 约定
+
+- 后端业务异常：`ResourceNotFoundException` → 404，`BadRequestException` → 400；统一 `ProblemDetail`。
+- 前端 `http.ts` 已把超时/无响应翻译成「请确认后端已启动」类中文错误，保持该体验。
+- 创建返回 201，删除返回 204。

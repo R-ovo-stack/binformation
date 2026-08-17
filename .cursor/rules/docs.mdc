@@ -1,0 +1,14 @@
+---
+description: 文档与样例数据维护约定
+globs: docs/**/*.md,README.md,frontend/README.md
+alwaysApply: false
+---
+
+# 文档约定
+
+- 根 `README.md`：面向「如何跑起来 + 功能地图 + API 索引 + 排障」。
+- `docs/implementation-logic.md`：面向「系统如何工作」的实现逻辑；改核心流水线时同步更新。
+- `docs/schema-design.md` / `graph-dto-design.md`：契约级；枚举与 GraphDTO 字段变更必须改文档。
+- `docs/flow-editing-guide.md`：产品向说明；`frontend` 的 `prebuild` 会复制到 `public/docs/`，改源文件即可。
+- 中文为主；代码标识符、路径、API 保持原文。
+- 避免在文档里写会过期的「预计工期」；用模块与依赖关系描述复杂度。

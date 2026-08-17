@@ -1,0 +1,56 @@
+---
+description: 前端 Vue/X6/Element Plus 约定与已知陷阱
+globs: frontend/**/*.{vue,ts,css}
+alwaysApply: false
+---
+
+# 前端约定
+
+## 结构
+
+- `src/api/`：按领域拆分的 axios 客户端；共用 `http.ts`
+- `src/views/`：路由页面；`src/components/`：可复用 UI / 画布
+- `src/utils/graphLayout.ts`：资产图布局与边展开；`flowBoardGraph.ts`：可视化编辑 → AssetGraph
+- `src/types/`：与后端 DTO 对齐的类型
+- 路径别名：`@` → `src/`
+
+## Element Plus
+
+- `el-radio-button` **必须用 `value`**，不要用已废弃的 `label` 传枚举值。
+- 文案放在插槽里；绑定值用英文枚举（如 `compact` / `full` / `DELETE`）。
+
+## AntV X6 画布（硬规则）
+
+1. **先有节点、再画边**。`addEdge` 前确认 `graph.getCellById(source/target)?.isNode()`。
+2. **布局过滤与画边数据源必须一致**：
+   - 一键成图只读画布：`viewGraph` 已 `filterGraphForMode`，布局与边都用同一份。
+   - **可视化编辑板 `FlowBoardCanvas` 必须用 `layoutGraph(..., 'full')`**，因为板上要展示 AUX / 非 primary 流向；用 compact 会丢掉节点但仍画边 → X6 报 `source node … not exists`，控制台可能连带出现 `Cannot read properties of null (reading '2')`。
+3. 不要用 `:key="layoutMode-..."` 仅为切换布局而整树销毁画布；`watch(layoutMode)` + `render()` 即可。`key` 仅在数据结构真正换集时使用（如所选资产集合变化）。
+4. 重渲染用 `renderSeq` 防竞态；`onBeforeUnmount` 必须 `dispose` Graph。
+5. `expandDisplayEdges` 会把流向拆成「源→程序→目标」段；点击段仍映射回原 Flow。
+
+## compact vs full
+
+| 模式 | 行为 |
+|------|------|
+| `compact` | 保留 primary（及 upstream）边及相关节点；适合只读一键成图默认视图 |
+| `full` | 保留全部节点/边；可视化编辑板固定用此模式 |
+
+「压缩部署」：`applyCompressExecutorHost` — 不画 RUNS_ON，主机名写入程序框。
+
+## 字体与样式
+
+- 使用 `@fontsource/space-grotesk` + `@fontsource/source-sans-3`（已在 `style.css`）。
+- **禁止**再 `@import` Google Fonts CDN（会导致本地/离线一直转圈）。
+- 主题色与 CSS 变量已在 `style.css`；新页面优先复用 `--ink` / `--muted` / `--line` 等。
+
+## Vite
+
+- `/api` 代理到 `http://127.0.0.1:8080`；代理失败返回 502 JSON 提示启动后端。
+- 开发必须 `npm run dev`；`npm run preview` 无代理。
+
+## 影响分析 / 搜索 / 供需
+
+- 删除前用 `impactConfirm` / `ImpactDeleteBody`；编辑页可嵌 `ImpactAnalysisPanel`。
+- 全局搜索：`GlobalSearch` + `/search`；导航用 `searchNav`。
+- 供需：`/lineage` → `SystemAssetLineageView`。

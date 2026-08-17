@@ -1,0 +1,61 @@
+---
+description: 后端 Spring Boot / MyBatis / Flyway 约定
+globs: src/**/*.{java,yml,yaml,sql}
+alwaysApply: false
+---
+
+# 后端约定
+
+## 分层
+
+```
+controller → service → mapper(entity)
+                 ↘ dto.*（对外契约）
+support.*（落点层级、CSV、面包屑）
+exception.*（ResourceNotFound / BadRequest + GlobalExceptionHandler）
+```
+
+- Controller 保持薄：参数校验、调用 service、定 HTTP 状态。
+- 业务规则与图组装放在 Service，不要堆进 Controller。
+- 持久化用 MyBatis-Plus `BaseMapper`；复杂查询可在 Service 内组合。
+
+## 包与命名
+
+- 根包：`com.binformation.ledger`
+- DTO 按领域分子包：`dto.graph` / `dto.flow` / `dto.impact` / …
+- 表名蛇形；Java 驼峰；`map-underscore-to-camel-case: true`
+- ID：数据库自增（`id-type: auto`）
+
+## Flyway / H2
+
+- 迁移仅放 `src/main/resources/db/migration/V{n}__*.sql`
+- **禁止**改写已合并的历史迁移；只追加新版本。
+- 样例数据在 V2+；本地库文件 `./data/datacenter-ledger.mv.db`（勿提交锁冲突产物到业务逻辑里）。
+- 测试可用 `src/test/resources/application.yml` 的独立配置。
+
+## 领域规则（改前先读）
+
+1. **落点树**：父类型约束在 `EndpointHierarchy` / `EndpointService`；不要绕过校验写任意 `parent_id`。
+2. **流向**：单源单目标；嵌套 path/step；更新通常 **整树替换**（删旧插新）且 `@Transactional`。
+3. **一键成图**：`AssetGraphService.buildGraph` — 默认只含 primary；`includeAuxiliary` / `includeUpstream` 控制扩展。图上的 CONTAINS / RUNS_ON / BROKER_OF / VIA_EXECUTOR 是**计算关系**，不是独立业务表。
+4. **影响分析**：删改前查依赖；有 BLOCKER 则 `canProceed=false`。前端删除对话框应对齐该结果。
+5. **变更审计**：重要写操作通过 `ChangeLogService.record`。
+
+## API 风格
+
+- 前缀 `/api/...`
+- 列表/详情 GET；创建 POST → 201；更新 PUT；删除 DELETE → 204
+- 选项列表：`?optionsOnly=true`（endpoints / executors）
+- 错误消息可用中文（已有前端直接展示）
+
+## 测试
+
+- Controller 测试放 `src/test/java/com/binformation/ledger/`
+- 改公共 API 或图组装逻辑时尽量补/更新对应 `*ControllerTest`
+- 本地：`mvn test`
+
+## 勿做
+
+- 不要引入第二套 ORM 或换掉 H2（除非任务明确要求）。
+- 不要在 Service 里返回 Entity 给前端；用 DTO。
+- 不要把布局算法搬到后端（布局在前端 `graphLayout.ts`；后端只存 `flow_layout` 坐标）。
